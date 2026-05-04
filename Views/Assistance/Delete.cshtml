@@ -1,0 +1,52 @@
+@model MedicalPractice.Models.Patient
+@{
+    ViewData["Title"] = "Delete Patient";
+}
+
+<div class="page-header">
+    <h1><i class="bi bi-trash me-2" style="color:var(--mp-danger);"></i>Delete Patient</h1>
+    <p>This action cannot be undone</p>
+</div>
+
+<div style="max-width:520px;">
+    <div class="mp-card">
+        <div class="mp-alert mp-alert-danger">
+            <i class="bi bi-exclamation-triangle-fill" style="font-size:1.1rem; flex-shrink:0;"></i>
+            <div>You are about to permanently delete this patient record and <strong>all associated visit history</strong>.</div>
+        </div>
+
+        <div style="background:var(--mp-light); border-radius:10px; padding:1.25rem; margin-bottom:1.5rem;">
+            <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+                <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#e0f0f7,var(--mp-secondary));
+                            display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.25rem;color:var(--mp-primary);">
+                    @Model.Name.Substring(0,1)
+                </div>
+                <div>
+                    <div style="font-weight:700; font-size:1.05rem;">@Model.Name @Model.Surname</div>
+                    <div style="color:var(--mp-muted); font-size:.875rem;">@@@Model.Username</div>
+                </div>
+            </div>
+            <div class="row g-2" style="font-size:.875rem;">
+                <div class="col-6"><span style="color:var(--mp-muted);">Gender:</span> @Model.Gender</div>
+                <div class="col-6"><span style="color:var(--mp-muted);">Phone:</span> @Model.PhoneNumber</div>
+                <div class="col-12"><span style="color:var(--mp-muted);">Email:</span> @Model.EmailAddress</div>
+                <div class="col-12"><span style="color:var(--mp-muted);">Address:</span> @Model.HomeAddress</div>
+                <div class="col-12">
+                    <span style="color:var(--mp-muted);">Medical Aid:</span>
+                    @if (Model.MedicalAid) { <span class="badge-active">@Model.MedicalAidCompany</span> }
+                    else { <span>None</span> }
+                </div>
+            </div>
+        </div>
+
+        <form asp-action="Delete" asp-route-id="@Model.PatientId" method="post">
+            @Html.AntiForgeryToken()
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn-mp-danger flex-grow-1">
+                    <i class="bi bi-trash me-1"></i> Yes, Delete Patient
+                </button>
+                <a asp-action="Index" class="btn-mp-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>

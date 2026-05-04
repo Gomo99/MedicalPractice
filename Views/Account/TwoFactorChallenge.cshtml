@@ -1,0 +1,77 @@
+@model MedicalPractice.ViewModel.TwoFactorChallengeViewModel
+@{
+    ViewData["Title"] = "Two-Factor Authentication";
+    Layout = "_Layout";
+}
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div style="text-align:center; margin-bottom:1.5rem;">
+            <div style="width:64px;height:64px;border-radius:50%;background:#e0f0f7;display:flex;align-items:center;
+                        justify-content:center;margin:0 auto .9rem;font-size:1.75rem;color:var(--mp-primary);">
+                <i class="bi bi-shield-lock"></i>
+            </div>
+            <div class="auth-logo" style="font-size:1.4rem;">Verify Identity</div>
+            <p class="auth-sub" style="margin-top:.3rem;">Enter the code from your authenticator app</p>
+        </div>
+
+        <form asp-action="TwoFactorChallenge" method="post" id="tfForm">
+            @Html.AntiForgeryToken()
+
+            <div asp-validation-summary="ModelOnly" class="mp-alert mp-alert-danger" style="@(ViewData.ModelState.IsValid ? "display:none" : "")">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                <span asp-validation-summary="ModelOnly"></span>
+            </div>
+
+            <!-- Authenticator Code panel -->
+            <div id="codePanel">
+                <div class="mb-4">
+                    <label asp-for="Code" class="form-label">Authenticator Code</label>
+                    <input asp-for="Code" class="form-control" placeholder="000000" maxlength="6"
+                           style="letter-spacing:8px; font-size:1.4rem; text-align:center; font-weight:700;" autocomplete="one-time-code" />
+                    <span asp-validation-for="Code" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <input asp-for="UseRecoveryCode" type="hidden" value="false" id="useRecovery" />
+                <button type="submit" class="btn-mp-primary w-100" style="padding:.7rem;">
+                    <i class="bi bi-check-circle me-2"></i>Verify
+                </button>
+                <div class="text-center mt-3">
+                    <a href="#" onclick="toggleMode(true)" style="color:var(--mp-accent); text-decoration:none; font-size:.875rem;">
+                        Use a recovery code instead
+                    </a>
+                </div>
+            </div>
+
+            <!-- Recovery Code panel -->
+            <div id="recoveryPanel" style="display:none;">
+                <div class="mp-alert mp-alert-info">
+                    <i class="bi bi-info-circle-fill"></i>
+                    Recovery codes are one-time use. Each code can only be used once.
+                </div>
+                <div class="mb-4">
+                    <label asp-for="RecoveryCode" class="form-label">Recovery Code</label>
+                    <input asp-for="RecoveryCode" class="form-control" placeholder="XXXXX-XXXXX" style="font-family:monospace; font-size:1.1rem;" />
+                    <span asp-validation-for="RecoveryCode" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <button type="submit" class="btn-mp-primary w-100" style="padding:.7rem;" onclick="document.getElementById('useRecovery').value='true';">
+                    <i class="bi bi-check-circle me-2"></i>Use Recovery Code
+                </button>
+                <div class="text-center mt-3">
+                    <a href="#" onclick="toggleMode(false)" style="color:var(--mp-accent); text-decoration:none; font-size:.875rem;">
+                        Use authenticator app instead
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        function toggleMode(useRecovery) {
+            document.getElementById('codePanel').style.display = useRecovery ? 'none' : 'block';
+            document.getElementById('recoveryPanel').style.display = useRecovery ? 'block' : 'none';
+        }
+    </script>
+}

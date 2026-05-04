@@ -1,0 +1,19 @@
+@{
+    ViewData["Title"] = "Access Denied";
+    Layout = "_Layout";
+}
+
+<div class="auth-page">
+    <div class="auth-card text-center">
+        <div style="font-size:3.5rem; color:var(--mp-danger); margin-bottom:.75rem;">
+            <i class="bi bi-shield-exclamation"></i>
+        </div>
+        <div class="auth-logo" style="color:var(--mp-danger);">Access Denied</div>
+        <p class="auth-sub" style="margin-top:.5rem;">
+            You do not have permission to access this page.
+        </p>
+        <a asp-controller="Account" asp-action="Login" class="btn-mp-primary d-inline-block" style="text-decoration:none; padding:.65rem 2rem;">
+            <i class="bi bi-arrow-left me-2"></i>Back to Login
+        </a>
+    </div>
+</div>

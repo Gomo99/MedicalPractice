@@ -1,0 +1,73 @@
+@model MedicalPractice.ViewModel.VisitViewModel
+@{
+    ViewData["Title"] = "Add Visit";
+}
+
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem;">
+        <a asp-action="PatientHistory" asp-route-id="@Model.PatientId" style="color:var(--mp-muted); text-decoration:none; font-size:.875rem;">
+            <i class="bi bi-arrow-left me-1"></i>Patient History
+        </a>
+    </div>
+    <h1><i class="bi bi-clipboard2-plus me-2" style="color:var(--mp-accent);"></i>Add Visit</h1>
+    <p>Patient: <strong>@ViewBag.PatientName</strong></p>
+</div>
+
+<div style="max-width:660px;">
+    <div class="mp-card">
+        <form asp-action="AddVisit" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="PatientId" />
+
+            <div asp-validation-summary="ModelOnly" class="mp-alert mp-alert-danger" style="@(ViewData.ModelState.IsValid ? "display:none" : "")">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                <span asp-validation-summary="ModelOnly"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="VisitDateTime" class="form-label">Date & Time of Visit <span style="color:var(--mp-danger);">*</span></label>
+                <input asp-for="VisitDateTime" class="form-control" type="datetime-local" />
+                <span asp-validation-for="VisitDateTime" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Diagnosis" class="form-label">Diagnosis <span style="color:var(--mp-danger);">*</span></label>
+                <textarea asp-for="Diagnosis" class="form-control" rows="5"
+                          placeholder="Enter clinical diagnosis and observations…" style="resize:vertical;"></textarea>
+                <span asp-validation-for="Diagnosis" class="text-danger" style="font-size:.8rem;"></span>
+                <div style="font-size:.78rem; color:var(--mp-muted); margin-top:.3rem;" id="diagCount">0 characters</div>
+            </div>
+
+            <div class="mb-4">
+                <label asp-for="Treatment" class="form-label">Treatment <span style="color:var(--mp-danger);">*</span></label>
+                <textarea asp-for="Treatment" class="form-control" rows="5"
+                          placeholder="Enter prescribed treatment, medication and follow-up instructions…" style="resize:vertical;"></textarea>
+                <span asp-validation-for="Treatment" class="text-danger" style="font-size:.8rem;"></span>
+                <div style="font-size:.78rem; color:var(--mp-muted); margin-top:.3rem;" id="treatCount">0 characters</div>
+            </div>
+
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn-mp-primary flex-grow-1">
+                    <i class="bi bi-clipboard2-check me-1"></i> Record Visit
+                </button>
+                <a asp-action="PatientHistory" asp-route-id="@Model.PatientId" class="btn-mp-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        function charCount(textareaId, counterId) {
+            const ta = document.getElementById(textareaId);
+            const ct = document.getElementById(counterId);
+            if (ta && ct) {
+                ta.addEventListener('input', () => ct.textContent = ta.value.length + ' characters');
+                ct.textContent = ta.value.length + ' characters';
+            }
+        }
+        charCount('Diagnosis', 'diagCount');
+        charCount('Treatment', 'treatCount');
+    </script>
+}

@@ -1,0 +1,134 @@
+@model MedicalPractice.ViewModel.PatientViewModel
+@{
+    ViewData["Title"] = "Edit Patient";
+}
+
+<div class="page-header">
+    <h1><i class="bi bi-pencil-square me-2" style="color:var(--mp-accent);"></i>Edit Patient</h1>
+    <p>Update patient information</p>
+</div>
+
+<div style="max-width:720px;">
+    <div class="mp-card">
+        <form asp-action="Edit" asp-route-id="@Model.PatientId" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="PatientId" />
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="mp-alert mp-alert-danger">
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                    <div asp-validation-summary="All"></div>
+                </div>
+            }
+
+            <!-- Personal Info -->
+            <div style="font-size:.75rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.75rem;">
+                Personal Information
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label asp-for="Name" class="form-label">First Name <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="Name" class="form-control" />
+                    <span asp-validation-for="Name" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Surname" class="form-label">Surname <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="Surname" class="form-control" />
+                    <span asp-validation-for="Surname" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Username" class="form-label">Username <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="Username" class="form-control" />
+                    <span asp-validation-for="Username" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Gender" class="form-label">Gender <span style="color:var(--mp-danger);">*</span></label>
+                    <select asp-for="Gender" class="form-select">
+                        <option value="">— Select gender —</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Non-binary">Non-binary</option>
+                        <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                    <span asp-validation-for="Gender" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+            </div>
+
+            <!-- Contact Info -->
+            <div style="font-size:.75rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.75rem;">
+                Contact Information
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <label asp-for="HomeAddress" class="form-label">Home Address <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="HomeAddress" class="form-control" />
+                    <span asp-validation-for="HomeAddress" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="EmailAddress" class="form-label">Email Address <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="EmailAddress" class="form-control" type="email" />
+                    <span asp-validation-for="EmailAddress" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="PhoneNumber" class="form-label">Phone Number <span style="color:var(--mp-danger);">*</span></label>
+                    <input asp-for="PhoneNumber" class="form-control" />
+                    <span asp-validation-for="PhoneNumber" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+            </div>
+
+            <!-- Medical Aid -->
+            <div style="font-size:.75rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.75rem;">
+                Medical Aid
+            </div>
+            <div style="background:var(--mp-light); border-radius:10px; padding:1.25rem; margin-bottom:1.5rem;">
+                <p class="form-label" style="margin-bottom:.75rem;">Is the patient on medical aid?</p>
+                <div class="d-flex gap-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="MedicalAid" value="true" id="aidYes"
+                               onclick="toggleMedicalAid(true)" checked="@(Model.MedicalAid ? "checked" : null)" />
+                        <label class="form-check-label" for="aidYes" style="font-weight:500;">Yes</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" asp-for="MedicalAid" value="false" id="aidNo"
+                               onclick="toggleMedicalAid(false)" checked="@(!Model.MedicalAid ? "checked" : null)" />
+                        <label class="form-check-label" for="aidNo" style="font-weight:500;">No</label>
+                    </div>
+                </div>
+
+                <div id="medAidProvider" style="margin-top:1rem; @(!Model.MedicalAid ? "display:none;" : "")">
+                    <label asp-for="MedicalAidCompany" class="form-label">Medical Aid Provider <span style="color:var(--mp-danger);">*</span></label>
+                    <select asp-for="MedicalAidCompany" class="form-select" style="max-width:320px;">
+                        <option value="">— Select provider —</option>
+                        @foreach (var company in (string[])ViewBag.MedicalAidCompanies)
+                        {
+                            <option value="@company" selected="@(Model.MedicalAidCompany == company ? "selected" : null)">@company</option>
+                        }
+                    </select>
+                    <span asp-validation-for="MedicalAidCompany" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+            </div>
+
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn-mp-primary flex-grow-1">
+                    <i class="bi bi-check-lg me-1"></i> Save Changes
+                </button>
+                <a asp-action="Index" class="btn-mp-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        function toggleMedicalAid(show) {
+            document.getElementById('medAidProvider').style.display = show ? 'block' : 'none';
+            if (!show) {
+                // Clear provider selection
+                const sel = document.querySelector('[name="MedicalAidCompany"]');
+                if (sel) sel.value = '';
+            }
+        }
+    </script>
+}

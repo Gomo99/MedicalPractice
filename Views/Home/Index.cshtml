@@ -1,8 +1,16 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@{
+    ViewData["Title"] = "Home";
+    Layout = "_Layout";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="auth-page">
+    <div style="text-align:center; color:#fff; max-width:520px; padding:2rem;">
+        <div style="font-family:'DM Serif Display',serif; font-size:2.5rem; margin-bottom:1rem;">MedicalPractice</div>
+        <p style="font-size:1.1rem; opacity:.85; margin-bottom:2rem;">Digitalizing patient visits for modern medical practices.</p>
+        <a asp-controller="Account" asp-action="Login"
+           style="background:#fff; color:var(--mp-primary); border-radius:10px; padding:.75rem 2.5rem;
+                  font-weight:700; text-decoration:none; font-size:1rem; display:inline-block;">
+            Sign In
+        </a>
+    </div>
 </div>

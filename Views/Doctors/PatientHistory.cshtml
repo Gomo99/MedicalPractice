@@ -1,0 +1,118 @@
+@model IEnumerable<MedicalPractice.Models.Visit>
+@using MedicalPractice.Models
+@{
+    ViewData["Title"] = "Patient History";
+    var patient = ViewBag.Patient as Patient;
+}
+
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem;">
+            <a asp-action="PatientList" style="color:var(--mp-muted); text-decoration:none; font-size:.875rem;">
+                <i class="bi bi-arrow-left me-1"></i>Patient List
+            </a>
+            <span style="color:var(--mp-border);">/</span>
+            <span style="font-size:.875rem; color:var(--mp-muted);">History</span>
+        </div>
+        <h1>
+            <i class="bi bi-clipboard2-pulse me-2" style="color:var(--mp-accent);"></i>
+            @patient?.Name @patient?.Surname
+        </h1>
+        <p>@Model.Count() visit record@(Model.Count() != 1 ? "s" : "") on file</p>
+    </div>
+    <a asp-action="AddVisit" asp-route-patientId="@patient?.PatientId" class="btn-mp-primary" style="text-decoration:none;">
+        <i class="bi bi-plus-lg me-1"></i> Add Visit
+    </a>
+</div>
+
+<!-- Patient Info Card -->
+@if (patient != null)
+{
+    <div class="mp-card mb-4" style="border-top:3px solid var(--mp-accent);">
+        <div class="row g-3" style="font-size:.875rem;">
+            <div class="col-sm-4 col-md-2">
+                <div style="color:var(--mp-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;">Patient #</div>
+                <div style="font-weight:700; font-family:monospace;">#@patient.PatientId.ToString("D4")</div>
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <div style="color:var(--mp-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;">Gender</div>
+                <div>@patient.Gender</div>
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <div style="color:var(--mp-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;">Email</div>
+                <div>@patient.EmailAddress</div>
+            </div>
+            <div class="col-sm-4 col-md-2">
+                <div style="color:var(--mp-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;">Phone</div>
+                <div>@patient.PhoneNumber</div>
+            </div>
+            <div class="col-sm-4 col-md-3">
+                <div style="color:var(--mp-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;">Medical Aid</div>
+                @if (patient.MedicalAid)
+                { <span class="badge-active">@patient.MedicalAidCompany</span> }
+                else
+                { <span>None</span> }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Visit Timeline -->
+@if (!Model.Any())
+{
+    <div class="mp-card text-center py-5">
+        <i class="bi bi-clipboard2" style="font-size:3rem; color:var(--mp-border);"></i>
+        <p style="color:var(--mp-muted); margin-top:.75rem;">No visit records yet. Add the first visit!</p>
+        <a asp-action="AddVisit" asp-route-patientId="@patient?.PatientId" class="btn-mp-primary" style="text-decoration:none; display:inline-block; margin-top:.5rem;">
+            <i class="bi bi-plus-lg me-1"></i> Add Visit
+        </a>
+    </div>
+}
+else
+{
+    <div style="position:relative;">
+        @foreach (var visit in Model)
+        {
+            <div class="mp-card mb-3" style="border-left:4px solid var(--mp-accent);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.75rem; margin-bottom:.9rem;">
+                    <div>
+                        <div style="display:flex; align-items:center; gap:.6rem;">
+                            <div style="width:10px;height:10px;border-radius:50%;background:var(--mp-accent);flex-shrink:0;"></div>
+                            <span style="font-weight:700; font-size:.95rem;">@visit.VisitDateTime.ToString("dddd, dd MMMM yyyy")</span>
+                        </div>
+                        <div style="color:var(--mp-muted); font-size:.825rem; margin-left:1.6rem;">
+                            <i class="bi bi-clock me-1"></i>@visit.VisitDateTime.ToString("HH:mm")
+                            &nbsp;·&nbsp;
+                            <i class="bi bi-person-badge me-1"></i>Dr. @(visit.Doctor?.FullName ?? "Unknown")
+                        </div>
+                    </div>
+                    @{
+                        var doctorIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        int.TryParse(doctorIdStr, out int currentDoctorId);
+                    }
+                    @if (visit.DoctorId == currentDoctorId)
+                    {
+                        <a asp-action="EditVisit" asp-route-id="@visit.VisitId" class="btn-mp-outline" style="font-size:.8rem; padding:.3rem .8rem;">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                    }
+                </div>
+
+                <div class="row g-3" style="font-size:.9rem;">
+                    <div class="col-md-6">
+                        <div style="font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--mp-muted); margin-bottom:.4rem;">
+                            <i class="bi bi-activity me-1"></i> Diagnosis
+                        </div>
+                        <div style="background:var(--mp-light); border-radius:8px; padding:.75rem; line-height:1.6; white-space:pre-wrap;">@visit.Diagnosis</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div style="font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--mp-muted); margin-bottom:.4rem;">
+                            <i class="bi bi-capsule me-1"></i> Treatment
+                        </div>
+                        <div style="background:var(--mp-light); border-radius:8px; padding:.75rem; line-height:1.6; white-space:pre-wrap;">@visit.Treatment</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

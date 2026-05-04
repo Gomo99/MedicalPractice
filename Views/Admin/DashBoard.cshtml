@@ -1,0 +1,146 @@
+@model IEnumerable<MedicalPractice.Models.Employee>
+@using MedicalPractice.Status
+@{
+    ViewData["Title"] = "Admin Dashboard";
+    var doctors   = Model.Where(e => e.Role == MedicalPractice.Status.UserRole.Doctor);
+    var assistants = Model.Where(e => e.Role == MedicalPractice.Status.UserRole.Assistant);
+    var activeCount = Model.Count(e => e.IsActive == AccountStatus.Active);
+}
+
+<div class="page-header">
+    <h1>Admin Dashboard</h1>
+    <p>Manage all employee accounts in the system</p>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon blue"><i class="bi bi-people"></i></div>
+            <div>
+                <div class="stat-val">@Model.Count()</div>
+                <div class="stat-lbl">Total Employees</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon teal"><i class="bi bi-heart-pulse"></i></div>
+            <div>
+                <div class="stat-val">@doctors.Count()</div>
+                <div class="stat-lbl">Doctors</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon amber"><i class="bi bi-person-workspace"></i></div>
+            <div>
+                <div class="stat-val">@assistants.Count()</div>
+                <div class="stat-lbl">Assistants</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-person-check"></i></div>
+            <div>
+                <div class="stat-val">@activeCount</div>
+                <div class="stat-lbl">Active Accounts</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Employee Table -->
+<div class="mp-card">
+    <div class="mp-card-header">
+        <div class="mp-card-title"><i class="bi bi-people"></i> All Employees</div>
+        <a asp-action="Create" class="btn-mp-primary" style="text-decoration:none; font-size:.875rem; padding:.45rem 1.1rem;">
+            <i class="bi bi-plus-lg me-1"></i> Add Employee
+        </a>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-people" style="font-size:3rem; color:var(--mp-border);"></i>
+            <p style="color:var(--mp-muted); margin-top:.75rem;">No employees found. Add the first one!</p>
+        </div>
+    }
+    else
+    {
+        <div style="overflow-x:auto;">
+            <table class="mp-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Full Name</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>2FA</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var emp in Model)
+                    {
+                        <tr>
+                            <td style="color:var(--mp-muted); font-size:.8rem;">@emp.EmployeeID</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:.65rem;">
+                                    <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--mp-primary),var(--mp-accent));
+                                                display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem;">
+                                        @(emp.FullName?.Substring(0,1).ToUpper() ?? "?")
+                                    </div>
+                                    <span style="font-weight:600;">@emp.FullName</span>
+                                </div>
+                            </td>
+                            <td>@@<span style="color:var(--mp-muted);">@emp.UserName</span></td>
+                            <td style="color:var(--mp-muted); font-size:.875rem;">@emp.Email</td>
+                            <td><span class="badge-role">@emp.Role</span></td>
+                            <td>
+                                @if (emp.IsActive == AccountStatus.Active)
+                                {
+                                    <span class="badge-active"><i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i>Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge-inactive"><i class="bi bi-circle-fill me-1" style="font-size:.5rem;"></i>Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                @if (emp.IsTwoFactorEnabled)
+                                {
+                                    <i class="bi bi-shield-check" style="color:var(--mp-success);" title="2FA enabled"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-shield" style="color:var(--mp-border);" title="2FA disabled"></i>
+                                }
+                            </td>
+                            <td>
+                                <div style="display:flex; gap:.3rem;">
+                                    <a asp-action="Edit" asp-route-id="@emp.EmployeeID" class="btn-icon" title="Edit" style="color:var(--mp-primary);">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <form asp-action="ToggleStatus" asp-route-id="@emp.EmployeeID" method="post" style="display:inline;"
+                                          onsubmit="return confirm('Toggle account status for @emp.FullName?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn-icon"
+                                                title="@(emp.IsActive == AccountStatus.Active ? "Deactivate" : "Activate")"
+                                                style="color:@(emp.IsActive == AccountStatus.Active ? "var(--mp-danger)" : "var(--mp-success)");">
+                                            <i class="bi @(emp.IsActive == AccountStatus.Active ? "bi-person-dash" : "bi-person-check")"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

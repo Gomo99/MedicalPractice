@@ -1,0 +1,16 @@
+@model MedicalPractice.Models.ErrorViewModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="page-header">
+    <h1><i class="bi bi-exclamation-triangle text-danger me-2"></i>An error occurred</h1>
+    <p>Sorry, something went wrong. Please try again.</p>
+</div>
+
+@if (Model.ShowRequestId)
+{
+    <div class="mp-card" style="max-width:500px;">
+        <p class="mb-0"><strong>Request ID:</strong> <code>@Model.RequestId</code></p>
+    </div>
+}

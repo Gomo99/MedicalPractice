@@ -1,0 +1,95 @@
+@model MedicalPractice.ViewModel.ProfileViewModel
+@{
+    ViewData["Title"] = "My Profile";
+}
+
+<div class="page-header">
+    <h1><i class="bi bi-person-badge me-2" style="color:var(--mp-accent);"></i>My Profile</h1>
+    <p>View and manage your account information</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="mp-card text-center">
+            <div style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--mp-primary),var(--mp-accent));
+                        display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-size:2.2rem;color:#fff;">
+                @(Model.FullName?.Substring(0,1).ToUpper() ?? "?")
+            </div>
+            <h5 style="font-weight:700;margin-bottom:.25rem;">@Model.FullName</h5>
+            <p style="color:var(--mp-muted);font-size:.875rem;margin-bottom:1rem;">@@<span>@Model.UserName</span></p>
+            <span class="badge-role">@Model.Role</span>
+            <div class="mt-2">
+                @if (Model.Status == "Active")
+                {
+                    <span class="badge-active">Active</span>
+                }
+                else
+                {
+                    <span class="badge-inactive">@Model.Status</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="mp-card">
+            <div class="mp-card-header">
+                <div class="mp-card-title"><i class="bi bi-info-circle"></i> Account Details</div>
+                <a asp-action="ChangePassword" class="btn-mp-outline" style="font-size:.8rem; padding:.35rem .9rem;">
+                    <i class="bi bi-key"></i> Change Password
+                </a>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <div style="background:var(--mp-light); border-radius:8px; padding:1rem;">
+                        <div style="font-size:.75rem; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.3rem;">Full Name</div>
+                        <div style="font-weight:600;">@Model.FullName</div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div style="background:var(--mp-light); border-radius:8px; padding:1rem;">
+                        <div style="font-size:.75rem; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.3rem;">Username</div>
+                        <div style="font-weight:600;">@Model.UserName</div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div style="background:var(--mp-light); border-radius:8px; padding:1rem;">
+                        <div style="font-size:.75rem; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.3rem;">Email</div>
+                        <div style="font-weight:600;">@Model.Email</div>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <div style="background:var(--mp-light); border-radius:8px; padding:1rem;">
+                        <div style="font-size:.75rem; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--mp-muted); margin-bottom:.3rem;">Role</div>
+                        <div style="font-weight:600;">@Model.Role</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mp-card mt-4">
+            <div class="mp-card-header">
+                <div class="mp-card-title"><i class="bi bi-shield-lock"></i> Security</div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div style="font-weight:600;">Two-Factor Authentication</div>
+                    <div style="font-size:.85rem; color:var(--mp-muted);">Add an extra layer of security to your account.</div>
+                </div>
+                <a asp-action="TwoFactorManage" class="btn-mp-outline" style="font-size:.85rem;">Manage</a>
+            </div>
+            <div class="auth-divider"></div>
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div style="font-weight:600; color:var(--mp-danger);">Deactivate Account</div>
+                    <div style="font-size:.85rem; color:var(--mp-muted);">Permanently deactivate your account.</div>
+                </div>
+                <form asp-action="Deactivate" method="post" onsubmit="return confirm('Are you sure you want to deactivate your account?');">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn-mp-danger" style="font-size:.85rem;">Deactivate</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
