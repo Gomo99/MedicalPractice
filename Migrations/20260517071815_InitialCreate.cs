@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MedicalPractice.Migrations
 {
     /// <inheritdoc />
-    public partial class SeedEmployees : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -63,6 +63,41 @@ namespace MedicalPractice.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Appointments",
+                columns: table => new
+                {
+                    AppointmentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PatientId = table.Column<int>(type: "int", nullable: false),
+                    DoctorId = table.Column<int>(type: "int", nullable: false),
+                    AppointmentDateTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedByReceptionistId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Appointments", x => x.AppointmentId);
+                    table.ForeignKey(
+                        name: "FK_Appointments_Employees_CreatedByReceptionistId",
+                        column: x => x.CreatedByReceptionistId,
+                        principalTable: "Employees",
+                        principalColumn: "EmployeeID");
+                    table.ForeignKey(
+                        name: "FK_Appointments_Employees_DoctorId",
+                        column: x => x.DoctorId,
+                        principalTable: "Employees",
+                        principalColumn: "EmployeeID",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Appointments_Patients_PatientId",
+                        column: x => x.PatientId,
+                        principalTable: "Patients",
+                        principalColumn: "PatientId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Visits",
                 columns: table => new
                 {
@@ -98,8 +133,24 @@ namespace MedicalPractice.Migrations
                 {
                     { 1, "admin@medpractice.com", 0, "Admin", "System Administrator", "Active", "False", "False", null, "False", "Admin123!", null, null, "Admin", null, null, "admin" },
                     { 2, "dr.smith@medpractice.com", 0, "John", "Dr. John Smith", "Active", "False", "False", null, "False", "Doctor123!", null, null, "Doctor", null, null, "dr.smith" },
-                    { 3, "jane@medpractice.com", 0, "Jane", "Jane Doe", "Active", "False", "False", null, "False", "Assistant123!", null, null, "Assistant", null, null, "assistant.jane" }
+                    { 3, "jane@medpractice.com", 0, "Jane", "Jane Doe", "Active", "False", "False", null, "False", "Assistant123!", null, null, "Assistant", null, null, "assistant.jane" },
+                    { 4, "receptionist@medpractice.com", 0, "Front", "Front Desk", "Active", "False", "False", null, "False", "Reception123!", null, null, "Receptionist", null, null, "receptionist" }
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Appointments_CreatedByReceptionistId",
+                table: "Appointments",
+                column: "CreatedByReceptionistId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Appointments_DoctorId",
+                table: "Appointments",
+                column: "DoctorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Appointments_PatientId",
+                table: "Appointments",
+                column: "PatientId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Visits_DoctorId",
@@ -115,6 +166,9 @@ namespace MedicalPractice.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "Appointments");
+
             migrationBuilder.DropTable(
                 name: "Visits");
 

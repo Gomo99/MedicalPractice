@@ -13,7 +13,7 @@ namespace MedicalPractice.Data
         public DbSet<Employee> Employees { get; set; }
         public DbSet<Patient> Patients { get; set; }
         public DbSet<Visit> Visits { get; set; }
-
+        public DbSet<Appointment> Appointments { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -98,6 +98,21 @@ namespace MedicalPractice.Data
                     FirstName = "Jane",
                     PasswordHash = "Assistant123!",
                     Role = UserRole.Assistant,
+                    IsActive = AccountStatus.Active,
+                    IsLockedOut = false,
+                    FailedLoginAttempts = 0,
+                    MustChangePassword = false,
+                    IsTwoFactorEnabled = false
+                },
+                new Employee
+                {
+                    EmployeeID = 4,
+                    UserName = "receptionist",
+                    Email = "receptionist@medpractice.com",
+                    FullName = "Front Desk",
+                    FirstName = "Front",
+                    PasswordHash = "Reception123!",   // plain text (auto-upgraded on first login)
+                    Role = UserRole.Receptionist,
                     IsActive = AccountStatus.Active,
                     IsLockedOut = false,
                     FailedLoginAttempts = 0,

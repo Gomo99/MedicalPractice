@@ -1,0 +1,103 @@
+﻿@model IEnumerable<MedicalPractice.Models.Appointment>
+@{
+    ViewData["Title"] = "Doctor Availability";
+    DateTime selectedDate = (DateTime)ViewBag.SelectedDate;
+    int? selectedDoctorId = ViewBag.SelectedDoctorId;
+    var doctors = ViewBag.Doctors as IEnumerable<SelectListItem>;
+}
+
+<div class="page-header">
+    <h1><i class="bi bi-person-badge me-2" style="color:var(--mp-accent);"></i>Doctor Availability</h1>
+    <p>Check a doctor's schedule</p>
+</div>
+
+<!-- Filters -->
+<form asp-action="DoctorSchedule" method="get" class="mb-4">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-auto">
+            <label class="form-label">Doctor</label>
+            <select name="doctorId" class="form-select" style="width:240px;">
+                <option value="">— Select doctor —</option>
+                @foreach (var doc in doctors)
+                {
+                    <option value="@doc.Value" selected="@(doc.Value == selectedDoctorId?.ToString() ? "selected" : null)">@doc.Text</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-auto">
+            <label class="form-label">Date</label>
+            <input type="date" name="date" class="form-control" value="@selectedDate.ToString("yyyy-MM-dd")" style="width:200px;" />
+        </div>
+        <div class="col-md-auto">
+            <button type="submit" class="btn-mp-primary"><i class="bi bi-search me-1"></i> View</button>
+        </div>
+    </div>
+</form>
+
+@if (selectedDoctorId.HasValue)
+{
+    <div class="mp-card">
+        <h5 class="mb-3">Appointments for @ViewBag.SelectedDate.ToString("dddd, dd MMMM yyyy")</h5>
+        @if (!Model.Any())
+        {
+            <div class="text-center py-5">
+                <i class="bi bi-calendar2-x" style="font-size:3rem; color:var(--mp-border);"></i>
+                <p style="color:var(--mp-muted); margin-top:.75rem;">No appointments for this doctor on this date.</p>
+            </div>
+        }
+        else
+        {
+            <div style="overflow-x:auto;">
+                <table class="mp-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Patient</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var appt in Model)
+                        {
+                            <tr>
+                                <td>@appt.AppointmentDateTime.ToString("hh:mm tt")</td>
+                                <td>
+                                    <div style="font-weight:600;">@appt.Patient.Name @appt.Patient.Surname</div>
+                                    <div style="font-size:.78rem;color:var(--mp-muted);">@appt.Patient.Username</div>
+                                </td>
+                                <td>@appt.Reason</td>
+                                <td>
+                                    @switch (appt.Status)
+                                    {
+                                        case AppointmentStatus.Booked:
+                                            <span class="badge-active">Booked</span>
+                                            break;
+                                        case AppointmentStatus.Arrived:
+                                            <span class="badge" style="background:#0d6efd;color:#fff;">Arrived</span>
+                                            break;
+                                        case AppointmentStatus.Completed:
+                                            <span class="badge" style="background:#198754;color:#fff;">Completed</span>
+                                            break;
+                                        case AppointmentStatus.Cancelled:
+                                            <span class="badge" style="background:#dc3545;color:#fff;">Cancelled</span>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="mp-card">
+        <div class="text-center py-5">
+            <i class="bi bi-arrow-left-circle" style="font-size:3rem; color:var(--mp-border);"></i>
+            <p style="color:var(--mp-muted); margin-top:.75rem;">Select a doctor and date to view their schedule.</p>
+        </div>
+    </div>
+}

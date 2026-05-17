@@ -11,10 +11,17 @@
     {
         Admin,
         Doctor,
-        Assistant
-       
+        Assistant,
+        Receptionist
+
     }
 
-
+    public enum AppointmentStatus
+    {
+        Booked,
+        Arrived,
+        Completed,
+        Cancelled
+    }
 
 }

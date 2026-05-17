@@ -1,0 +1,136 @@
+﻿@model IEnumerable<MedicalPractice.Models.Appointment>
+@{
+    ViewData["Title"] = "Daily Schedule";
+    DateTime selectedDate = (DateTime)ViewBag.SelectedDate;
+}
+
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1><i class="bi bi-calendar-check me-2" style="color:var(--mp-accent);"></i>Daily Schedule</h1>
+        <p>@selectedDate.ToString("dddd, dd MMMM yyyy") — @Model.Count() appointment(s)</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="BookAppointment" class="btn-mp-primary" style="text-decoration:none;">
+            <i class="bi bi-plus-lg me-1"></i> New Appointment
+        </a>
+    </div>
+</div>
+
+<!-- Date Picker -->
+<form asp-action="DailySchedule" method="get" class="mb-4">
+    <div class="d-flex gap-2 align-items-center" style="max-width:400px;">
+        <label class="form-label mb-0">Date:</label>
+        <input type="date" name="date" class="form-control" value="@selectedDate.ToString("yyyy-MM-dd")"
+               onchange="this.form.submit()" style="width:200px;" />
+        <button type="submit" class="btn-mp-outline">Go</button>
+    </div>
+</form>
+
+<div class="mp-card">
+    @if (!Model.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-calendar2-x" style="font-size:3rem; color:var(--mp-border);"></i>
+            <p style="color:var(--mp-muted); margin-top:.75rem;">No appointments for this date.</p>
+        </div>
+    }
+    else
+    {
+        <div style="overflow-x:auto;">
+            <table class="mp-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Patient</th>
+                        <th>Doctor</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var appt in Model)
+                    {
+                        <tr>
+                            <td>@appt.AppointmentDateTime.ToString("hh:mm tt")</td>
+                            <td>
+                                <div style="font-weight:600;">@appt.Patient.Name @appt.Patient.Surname</div>
+                                <div style="font-size:.78rem;color:var(--mp-muted);">@appt.Patient.Username</div>
+                            </td>
+                            <td>@appt.Doctor.FullName</td>
+                            <td>@appt.Reason</td>
+                            <td>
+                                @switch (appt.Status)
+                                {
+                                    case AppointmentStatus.Booked:
+                                        <span class="badge-active">Booked</span>
+                                        break;
+                                    case AppointmentStatus.Arrived:
+                                        <span class="badge" style="background:#0d6efd;color:#fff;">Arrived</span>
+                                        break;
+                                    case AppointmentStatus.Completed:
+                                        <span class="badge" style="background:#198754;color:#fff;">Completed</span>
+                                        break;
+                                    case AppointmentStatus.Cancelled:
+                                        <span class="badge" style="background:#dc3545;color:#fff;">Cancelled</span>
+                                        break;
+                                }
+                            </td>
+                            <td>
+                                <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
+                                    @if (appt.Status == AppointmentStatus.Booked)
+                                    {
+                                        <form asp-action="CheckIn" asp-route-id="@appt.AppointmentId" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn-icon" title="Check In" style="color:var(--mp-success);">
+                                                <i class="bi bi-check-circle"></i>
+                                            </button>
+                                        </form>
+                                        <a asp-action="Reschedule" asp-route-id="@appt.AppointmentId" class="btn-icon" title="Reschedule" style="color:var(--mp-primary);">
+                                            <i class="bi bi-calendar2-week"></i>
+                                        </a>
+                                        <form asp-action="Cancel" asp-route-id="@appt.AppointmentId" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn-icon" title="Cancel" style="color:var(--mp-danger);">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (appt.Status == AppointmentStatus.Arrived)
+                                    {
+                                        <form asp-action="UpdateStatus" asp-route-id="@appt.AppointmentId" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="newStatus" value="Completed" />
+                                            <button type="submit" class="btn-icon" title="Mark Completed" style="color:var(--mp-success);">
+                                                <i class="bi bi-check2-all"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (appt.Status == AppointmentStatus.Booked || appt.Status == AppointmentStatus.Arrived)
+                                    {
+                                        <form asp-action="UpdateStatus" asp-route-id="@appt.AppointmentId" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="newStatus" value="Cancelled" />
+                                            <button type="submit" class="btn-icon" title="Cancel Appointment" style="color:var(--mp-danger);">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // Optional: auto-submit date picker on change
+        document.querySelector('input[type="date"]').addEventListener('change', function() {
+            this.form.submit();
+        });
+    </script>
+}

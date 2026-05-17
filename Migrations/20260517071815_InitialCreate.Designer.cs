@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MedicalPractice.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260504085720_SeedEmployees")]
-    partial class SeedEmployees
+    [Migration("20260517071815_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,45 @@ namespace MedicalPractice.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("MedicalPractice.Models.Appointment", b =>
+                {
+                    b.Property<int>("AppointmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AppointmentId"));
+
+                    b.Property<DateTime>("AppointmentDateTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CreatedByReceptionistId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DoctorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("AppointmentId");
+
+                    b.HasIndex("CreatedByReceptionistId");
+
+                    b.HasIndex("DoctorId");
+
+                    b.HasIndex("PatientId");
+
+                    b.ToTable("Appointments");
+                });
 
             modelBuilder.Entity("MedicalPractice.Models.Employee", b =>
                 {
@@ -142,6 +181,21 @@ namespace MedicalPractice.Migrations
                             PasswordHash = "Assistant123!",
                             Role = "Assistant",
                             UserName = "assistant.jane"
+                        },
+                        new
+                        {
+                            EmployeeID = 4,
+                            Email = "receptionist@medpractice.com",
+                            FailedLoginAttempts = 0,
+                            FirstName = "Front",
+                            FullName = "Front Desk",
+                            IsActive = "Active",
+                            IsLockedOut = "False",
+                            IsTwoFactorEnabled = "False",
+                            MustChangePassword = "False",
+                            PasswordHash = "Reception123!",
+                            Role = "Receptionist",
+                            UserName = "receptionist"
                         });
                 });
 
@@ -226,6 +280,31 @@ namespace MedicalPractice.Migrations
                     b.HasIndex("PatientId");
 
                     b.ToTable("Visits");
+                });
+
+            modelBuilder.Entity("MedicalPractice.Models.Appointment", b =>
+                {
+                    b.HasOne("MedicalPractice.Models.Employee", "CreatedByReceptionist")
+                        .WithMany()
+                        .HasForeignKey("CreatedByReceptionistId");
+
+                    b.HasOne("MedicalPractice.Models.Employee", "Doctor")
+                        .WithMany()
+                        .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MedicalPractice.Models.Patient", "Patient")
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByReceptionist");
+
+                    b.Navigation("Doctor");
+
+                    b.Navigation("Patient");
                 });
 
             modelBuilder.Entity("MedicalPractice.Models.Visit", b =>

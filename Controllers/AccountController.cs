@@ -17,17 +17,25 @@ namespace MedicalPractice.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _email;
 
+        // How many failed attempts before lockout.
+        private const int MaxFailedAttempts = 5;
+
+        // How long the lockout lasts.
+        private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
         public AccountController(ApplicationDbContext context, IEmailService email)
         {
             _context = context;
             _email = email;
         }
 
-        // ── LOGIN ────────────────────────────────────────────────
+        // ── LOGIN ────────────────────────────────────────────────────────────
 
         [HttpGet]
         public IActionResult Login(string? returnUrl = null)
         {
+            // KEY FIX: if the user already has a valid persistent cookie, send
+            // them straight to their dashboard instead of showing the login page.
             if (User.Identity?.IsAuthenticated == true)
                 return RedirectToDashboard();
 
@@ -42,45 +50,98 @@ namespace MedicalPractice.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
-            var employee = _context.Employees
-                .FirstOrDefault(e => e.UserName == model.UserName);
+            var employee = await _context.Employees
+                .FirstOrDefaultAsync(e => e.UserName == model.UserName);
 
+            // Unknown user or inactive account — use a generic message to
+            // avoid username-enumeration attacks.
             if (employee == null || employee.IsActive != AccountStatus.Active)
             {
                 ModelState.AddModelError(string.Empty, "Invalid username or password.");
                 return View(model);
             }
 
+            // ── Lockout check ────────────────────────────────────────────────
+            if (employee.LockoutEnd.HasValue && employee.LockoutEnd.Value > DateTime.UtcNow)
+            {
+                var remaining = (employee.LockoutEnd.Value - DateTime.UtcNow).Minutes + 1;
+                ModelState.AddModelError(string.Empty,
+                    $"Account locked. Try again in {remaining} minute(s).");
+                return View(model);
+            }
+
+            // ── Password verification (BCrypt + plain-text upgrade) ──────────
             bool validPassword = false;
 
-            // Determine if the stored password is already a BCrypt hash
             if (!string.IsNullOrEmpty(employee.PasswordHash) &&
                 employee.PasswordHash.StartsWith("$2"))
             {
-                // Standard BCrypt verification
                 validPassword = BCrypt.Net.BCrypt.Verify(model.Password, employee.PasswordHash);
             }
             else
             {
-                // Plain‑text fallback (e.g., seeded data)
+                // Plain-text fallback for seeded / legacy data.
                 validPassword = (model.Password == employee.PasswordHash);
 
-                // If valid, upgrade the password to BCrypt immediately
                 if (validPassword)
                 {
-                    string newHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
-                    employee.PasswordHash = newHash;
+                    // Upgrade to BCrypt on first successful login.
+                    employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
                     await _context.SaveChangesAsync();
                 }
             }
 
             if (!validPassword)
             {
-                ModelState.AddModelError(string.Empty, "Invalid username or password.");
+                // ── Increment failed-attempt counter ─────────────────────────
+                employee.FailedLoginAttempts++;
+
+                if (employee.FailedLoginAttempts >= MaxFailedAttempts)
+                {
+                    employee.LockoutEnd = DateTime.UtcNow.Add(LockoutDuration);
+                    employee.FailedLoginAttempts = 0;   // reset counter for next window
+
+                    await _context.SaveChangesAsync();
+
+                    // Notify the account owner by email.
+                    try
+                    {
+                        string body = $@"
+                            <p>Hi {employee.FirstName ?? employee.FullName},</p>
+                            <p>Your Medical Practice account has been <strong>temporarily locked</strong>
+                               due to {MaxFailedAttempts} consecutive failed login attempts.</p>
+                            <p>The lock will expire in <strong>{(int)LockoutDuration.TotalMinutes} minutes</strong>.
+                               If this was not you, please reset your password immediately.</p>";
+
+                        await _email.SendAsync(
+                            employee.Email,
+                            "Medical Practice – Account Locked",
+                            body);
+                    }
+                    catch { /* email failure must never break the auth flow */ }
+
+                    ModelState.AddModelError(string.Empty,
+                        $"Too many failed attempts. Your account has been locked for " +
+                        $"{(int)LockoutDuration.TotalMinutes} minutes.");
+                }
+                else
+                {
+                    await _context.SaveChangesAsync();
+
+                    int attemptsLeft = MaxFailedAttempts - employee.FailedLoginAttempts;
+                    ModelState.AddModelError(string.Empty,
+                        $"Invalid username or password. {attemptsLeft} attempt(s) remaining.");
+                }
+
                 return View(model);
             }
 
-            // If 2FA is enabled, redirect to challenge
+            // ── Successful login — reset failure counter ──────────────────────
+            employee.FailedLoginAttempts = 0;
+            employee.LockoutEnd = null;
+            await _context.SaveChangesAsync();
+
+            // ── 2FA check ────────────────────────────────────────────────────
             if (employee.IsTwoFactorEnabled && !string.IsNullOrEmpty(employee.TwoFactorSecretKey))
             {
                 TempData["2fa_pending_id"] = employee.EmployeeID.ToString();
@@ -90,7 +151,7 @@ namespace MedicalPractice.Controllers
                 return RedirectToAction("TwoFactorChallenge");
             }
 
-            // Sign in directly (no 2FA)
+            // ── Sign in (no 2FA) ─────────────────────────────────────────────
             await SignInEmployeeAsync(employee, model.RememberMe);
 
             if (employee.MustChangePassword)
@@ -98,7 +159,8 @@ namespace MedicalPractice.Controllers
 
             return RedirectToSavedUrl(returnUrl, employee.Role);
         }
-        // ── LOGOUT ───────────────────────────────────────────────
+
+        // ── LOGOUT ───────────────────────────────────────────────────────────
 
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -108,7 +170,7 @@ namespace MedicalPractice.Controllers
             return RedirectToAction("Login");
         }
 
-        // ── VIEW PROFILE ─────────────────────────────────────────
+        // ── VIEW PROFILE ──────────────────────────────────────────────────────
 
         [Authorize]
         [HttpGet]
@@ -134,7 +196,7 @@ namespace MedicalPractice.Controllers
             return View(model);
         }
 
-        // ── CHANGE PASSWORD ─────────────────────────────────────
+        // ── CHANGE PASSWORD ───────────────────────────────────────────────────
 
         [Authorize]
         [HttpGet]
@@ -156,8 +218,7 @@ namespace MedicalPractice.Controllers
             if (employee == null)
                 return RedirectToAction("Login");
 
-            string newHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
-            employee.PasswordHash = newHash;
+            employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
             employee.MustChangePassword = false;
             await _context.SaveChangesAsync();
 
@@ -165,7 +226,7 @@ namespace MedicalPractice.Controllers
             return RedirectToDashboard(employee.Role);
         }
 
-        // ── FORGOT PASSWORD ──────────────────────────────────────
+        // ── FORGOT PASSWORD ───────────────────────────────────────────────────
 
         [HttpGet]
         public IActionResult ForgotPassword() => View();
@@ -177,33 +238,35 @@ namespace MedicalPractice.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
-            string? firstName = null;
-            string? email = null;
-
             string pin = new Random().Next(100000, 999999).ToString();
             string pinHash = BCrypt.Net.BCrypt.HashPassword(pin);
 
-            var employee = _context.Employees.FirstOrDefault(e => e.Email == model.Email);
+            var employee = await _context.Employees
+                .FirstOrDefaultAsync(e => e.Email == model.Email);
 
             if (employee != null && employee.IsActive == AccountStatus.Active)
             {
                 employee.ResetPin = pinHash;
                 employee.ResetPinExpiration = DateTime.Now.AddMinutes(15);
-                firstName = employee.FirstName ?? employee.FullName;
-                email = employee.Email;
                 await _context.SaveChangesAsync();
 
-                if (email != null)
-                {
-                    var body = $@"
-                        <p>Hi {firstName},</p>
-                        <p>Your password reset PIN is:</p>
-                        <h2 style='letter-spacing:4px'>{pin}</h2>
-                        <p>This PIN expires in <strong>15 minutes</strong>.</p>
-                        <p>If you did not request this, please ignore this email.</p>";
+                string firstName = employee.FirstName ?? employee.FullName ?? "there";
 
-                    await _email.SendAsync(email, "Medical Practice - Password Reset PIN", body);
+                string body = $@"
+                    <p>Hi {firstName},</p>
+                    <p>Your password reset PIN is:</p>
+                    <h2 style='letter-spacing:4px'>{pin}</h2>
+                    <p>This PIN expires in <strong>15 minutes</strong>.</p>
+                    <p>If you did not request this, please ignore this email.</p>";
+
+                try
+                {
+                    await _email.SendAsync(
+                        employee.Email,
+                        "Medical Practice – Password Reset PIN",
+                        body);
                 }
+                catch { /* prevent email failure from revealing whether address exists */ }
             }
 
             TempData["Info"] = "If that email is registered, a reset PIN has been sent.";
@@ -213,7 +276,7 @@ namespace MedicalPractice.Controllers
         [HttpGet]
         public IActionResult ForgotPasswordConfirmation() => View();
 
-        // ── RESET PASSWORD ───────────────────────────────────────
+        // ── RESET PASSWORD ────────────────────────────────────────────────────
 
         [HttpGet]
         public IActionResult ResetPassword(string? email = null) =>
@@ -226,7 +289,8 @@ namespace MedicalPractice.Controllers
             if (!ModelState.IsValid)
                 return View(model);
 
-            var employee = _context.Employees.FirstOrDefault(e => e.Email == model.Email);
+            var employee = await _context.Employees
+                .FirstOrDefaultAsync(e => e.Email == model.Email);
 
             if (employee == null ||
                 employee.ResetPin == null ||
@@ -237,8 +301,7 @@ namespace MedicalPractice.Controllers
                 return View(model);
             }
 
-            string newHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
-            employee.PasswordHash = newHash;
+            employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
             employee.ResetPin = null;
             employee.ResetPinExpiration = null;
             employee.FailedLoginAttempts = 0;
@@ -249,7 +312,7 @@ namespace MedicalPractice.Controllers
             return RedirectToAction("Login");
         }
 
-        // ── DEACTIVATE ACCOUNT ───────────────────────────────────
+        // ── DEACTIVATE ACCOUNT ────────────────────────────────────────────────
 
         [Authorize]
         [HttpPost]
@@ -272,7 +335,7 @@ namespace MedicalPractice.Controllers
             return RedirectToAction("Login");
         }
 
-        // ── TWO‑FACTOR CHALLENGE ──────────────────────────────────
+        // ── TWO-FACTOR CHALLENGE ──────────────────────────────────────────────
 
         [HttpGet]
         public IActionResult TwoFactorChallenge()
@@ -280,7 +343,6 @@ namespace MedicalPractice.Controllers
             if (TempData["2fa_pending_id"] == null)
                 return RedirectToAction("Login");
 
-            // Keep TempData for the POST
             TempData.Keep("2fa_pending_id");
             TempData.Keep("2fa_pending_type");
             TempData.Keep("2fa_remember_me");
@@ -312,7 +374,10 @@ namespace MedicalPractice.Controllers
                 if (employee == null) return RedirectToAction("Login");
 
                 var (verified, updatedCodes) = VerifyTwoFactor(
-                    model, employee.TwoFactorSecretKey, employee.TwoFactorRecoveryCodes, tfService);
+                    model,
+                    employee.TwoFactorSecretKey,
+                    employee.TwoFactorRecoveryCodes,
+                    tfService);
 
                 if (!verified)
                 {
@@ -320,11 +385,9 @@ namespace MedicalPractice.Controllers
                     return View(model);
                 }
 
-                // Save updated recovery codes (if a recovery code was used)
                 employee.TwoFactorRecoveryCodes = updatedCodes;
                 await _context.SaveChangesAsync();
 
-                // Sign in now
                 await SignInEmployeeAsync(employee, rememberMe);
 
                 if (employee.MustChangePassword)
@@ -333,13 +396,12 @@ namespace MedicalPractice.Controllers
                 return RedirectToSavedUrl(returnUrl, employee.Role);
             }
 
-            // If other user types exist, handle similarly
             TempData.Keep();
             ModelState.AddModelError("", "Invalid user type for 2FA.");
             return View(model);
         }
 
-        // ── TWO‑FACTOR SETUP ─────────────────────────────────────
+        // ── TWO-FACTOR SETUP ──────────────────────────────────────────────────
 
         [Authorize]
         [HttpGet]
@@ -354,7 +416,6 @@ namespace MedicalPractice.Controllers
             if (employee == null)
                 return RedirectToAction("Login");
 
-            // If already enabled, redirect to manage page
             if (employee.IsTwoFactorEnabled)
                 return RedirectToAction("TwoFactorManage");
 
@@ -363,8 +424,6 @@ namespace MedicalPractice.Controllers
             var uri = tfService.GetQrCodeUri(newSecret, email, "Medical Practice");
             var qrPng = tfService.GenerateQrCodePng(uri);
 
-            // We store the new secret temporarily, but do NOT persist yet.
-            // The view will contain it in a hidden field.
             return View(new TwoFactorSetupViewModel
             {
                 SecretKey = newSecret,
@@ -395,7 +454,6 @@ namespace MedicalPractice.Controllers
                 return View(vm);
             }
 
-            // Generate recovery codes (plain text shown to user once)
             var plainCodes = tfService.GenerateRecoveryCodes();
             var hashedCodes = plainCodes
                 .Select(c => BCrypt.Net.BCrypt.HashPassword(c.ToUpper()))
@@ -403,7 +461,8 @@ namespace MedicalPractice.Controllers
             var codesJson = System.Text.Json.JsonSerializer.Serialize(hashedCodes);
 
             var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(idStr, out int id)) return RedirectToAction("Login");
+            if (!int.TryParse(idStr, out int id))
+                return RedirectToAction("Login");
 
             var employee = await _context.Employees.FindAsync(id);
             if (employee != null)
@@ -414,13 +473,11 @@ namespace MedicalPractice.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            // Store plain recovery codes in TempData for display
             TempData["RecoveryCodes"] = System.Text.Json.JsonSerializer.Serialize(plainCodes);
-
             return RedirectToAction("TwoFactorRecoveryCodes");
         }
 
-        // ── TWO‑FACTOR RECOVERY CODES (after setup) ─────────────
+        // ── TWO-FACTOR RECOVERY CODES ─────────────────────────────────────────
 
         [Authorize]
         [HttpGet]
@@ -430,33 +487,33 @@ namespace MedicalPractice.Controllers
             if (string.IsNullOrEmpty(json))
                 return RedirectToAction("TwoFactorManage");
 
-            var codes = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json)
+            var codes = System.Text.Json.JsonSerializer
+                            .Deserialize<List<string>>(json)
                         ?? new List<string>();
 
             return View(new TwoFactorRecoveryCodesViewModel { PlainCodes = codes });
         }
 
-        // ── TWO‑FACTOR MANAGE ────────────────────────────────────
+        // ── TWO-FACTOR MANAGE ─────────────────────────────────────────────────
 
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> TwoFactorManage()
         {
             var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(idStr, out int id)) return RedirectToAction("Login");
+            if (!int.TryParse(idStr, out int id))
+                return RedirectToAction("Login");
 
             var employee = await _context.Employees.FindAsync(id);
-            if (employee == null) return RedirectToAction("Login");
+            if (employee == null)
+                return RedirectToAction("Login");
 
-            bool isEnabled = employee.IsTwoFactorEnabled;
-            int codesLeft = CountRecoveryCodes(employee.TwoFactorRecoveryCodes);
-
-            ViewData["IsEnabled"] = isEnabled;
-            ViewData["CodesLeft"] = codesLeft;
+            ViewData["IsEnabled"] = employee.IsTwoFactorEnabled;
+            ViewData["CodesLeft"] = CountRecoveryCodes(employee.TwoFactorRecoveryCodes);
             return View();
         }
 
-        // ── TWO‑FACTOR DISABLE ───────────────────────────────────
+        // ── TWO-FACTOR DISABLE ────────────────────────────────────────────────
 
         [Authorize]
         [HttpPost]
@@ -464,7 +521,8 @@ namespace MedicalPractice.Controllers
         public async Task<IActionResult> TwoFactorDisable()
         {
             var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(idStr, out int id)) return RedirectToAction("Login");
+            if (!int.TryParse(idStr, out int id))
+                return RedirectToAction("Login");
 
             var employee = await _context.Employees.FindAsync(id);
             if (employee != null)
@@ -475,11 +533,11 @@ namespace MedicalPractice.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            TempData["Success"] = "Two‑factor authentication has been disabled.";
+            TempData["Success"] = "Two-factor authentication has been disabled.";
             return RedirectToAction("TwoFactorManage");
         }
 
-        // ── TWO‑FACTOR REGENERATE CODES ──────────────────────────
+        // ── TWO-FACTOR REGENERATE CODES ───────────────────────────────────────
 
         [Authorize]
         [HttpPost]
@@ -488,7 +546,8 @@ namespace MedicalPractice.Controllers
             [FromServices] ITwoFactorService tfService)
         {
             var idStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(idStr, out int id)) return RedirectToAction("Login");
+            if (!int.TryParse(idStr, out int id))
+                return RedirectToAction("Login");
 
             var plainCodes = tfService.GenerateRecoveryCodes();
             var hashedCodes = plainCodes
@@ -507,21 +566,35 @@ namespace MedicalPractice.Controllers
             return RedirectToAction("TwoFactorRecoveryCodes");
         }
 
-        // ── ACCESS DENIED ─────────────────────────────────────────
+        // ── ACCESS DENIED ─────────────────────────────────────────────────────
 
         public IActionResult AccessDenied() => View();
 
-        // ── PRIVATE HELPERS ───────────────────────────────────────
+        // ═════════════════════════════════════════════════════════════════════
+        // PRIVATE HELPERS
+        // ═════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Creates the authentication cookie.
+        ///
+        /// KEY FIX: IsPersistent is ALWAYS true so the cookie is written to
+        /// disk (not just in memory).  A session cookie (IsPersistent = false)
+        /// is destroyed the moment the browser closes, which is exactly the
+        /// behaviour we want to eliminate.
+        ///
+        /// The RememberMe flag still controls the *lifetime*:
+        ///   RememberMe = true  → 7 days
+        ///   RememberMe = false → 8 hours  (same as a working day)
+        /// </summary>
         private async Task SignInEmployeeAsync(Employee employee, bool rememberMe)
         {
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, employee.EmployeeID.ToString()),
-                new Claim(ClaimTypes.Name, employee.UserName),
-                new Claim(ClaimTypes.Email, employee.Email),
-                new Claim(ClaimTypes.GivenName, employee.FullName ?? employee.UserName),
-                new Claim(ClaimTypes.Role, employee.Role.ToString())
+                new Claim(ClaimTypes.Name,           employee.UserName),
+                new Claim(ClaimTypes.Email,          employee.Email),
+                new Claim(ClaimTypes.GivenName,      employee.FullName ?? employee.UserName),
+                new Claim(ClaimTypes.Role,           employee.Role.ToString())
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -529,12 +602,26 @@ namespace MedicalPractice.Controllers
 
             var authProps = new AuthenticationProperties
             {
-                IsPersistent = rememberMe,
-                ExpiresUtc = rememberMe ? DateTimeOffset.UtcNow.AddDays(7) : DateTimeOffset.UtcNow.AddHours(8)
+                // ── THE CRITICAL FIX ──────────────────────────────────────────
+                // Must be TRUE for the cookie to survive the browser being closed.
+                // When false the browser treats it as a session cookie and deletes
+                // it from memory the moment the last window is closed.
+                IsPersistent = true,
+
+                // Expiry controls when the ticket becomes invalid, independently
+                // of whether the user ticked "Remember Me".
+                ExpiresUtc = rememberMe
+                    ? DateTimeOffset.UtcNow.AddDays(7)
+                    : DateTimeOffset.UtcNow.AddHours(8),
+
+                // Allow the middleware to slide the expiry on each request.
+                AllowRefresh = true,
             };
 
             await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                authProps);
         }
 
         private IActionResult RedirectToDashboard(UserRole? role = null)
@@ -559,6 +646,7 @@ namespace MedicalPractice.Controllers
         {
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                 return Redirect(returnUrl);
+
             return RedirectToDashboard(role);
         }
 
@@ -585,22 +673,21 @@ namespace MedicalPractice.Controllers
 
                 return (true, updatedCodes);
             }
-            else
+
+            // ── TOTP code path ────────────────────────────────────────────────
+            if (string.IsNullOrWhiteSpace(model.Code))
             {
-                if (string.IsNullOrWhiteSpace(model.Code))
-                {
-                    ModelState.AddModelError("Code", "Please enter your authentication code.");
-                    return (false, storedCodes);
-                }
-
-                if (secretKey == null || !tfService.VerifyCode(secretKey, model.Code))
-                {
-                    ModelState.AddModelError("Code", "Invalid or expired code. Try again.");
-                    return (false, storedCodes);
-                }
-
-                return (true, storedCodes);
+                ModelState.AddModelError("Code", "Please enter your authentication code.");
+                return (false, storedCodes);
             }
+
+            if (secretKey == null || !tfService.VerifyCode(secretKey, model.Code))
+            {
+                ModelState.AddModelError("Code", "Invalid or expired code. Try again.");
+                return (false, storedCodes);
+            }
+
+            return (true, storedCodes);
         }
 
         private static int CountRecoveryCodes(string? json)
