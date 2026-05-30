@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace MedicalPractice.Controllers
@@ -306,6 +307,110 @@ namespace MedicalPractice.Controllers
             TempData["Success"] = $"Patient '{patient.Name} {patient.Surname}' registered.";
             return RedirectToAction(nameof(DailySchedule));
         }
+
+
+
+        public async Task<IActionResult> PendingRequests()
+        {
+            var requests = await _context.AppointmentRequests
+                .Where(r => r.Status == "Pending")
+                .Include(r => r.Patient)
+                .Include(r => r.Doctor)
+                .OrderBy(r => r.RequestedAt)
+                .ToListAsync();
+
+            return View(requests);
+        }
+
+        // ── APPROVE REQUEST (GET) – shows the form to adjust time ─
+        [HttpGet]
+        public async Task<IActionResult> ApproveRequest(int? id)
+        {
+            if (id == null) return NotFound();
+
+            var request = await _context.AppointmentRequests
+                .Include(r => r.Patient)
+                .Include(r => r.Doctor)
+                .FirstOrDefaultAsync(r => r.RequestId == id);
+
+            if (request == null || request.Status != "Pending")
+                return NotFound();
+
+            var model = new ApproveRequestViewModel
+            {
+                RequestId = request.RequestId,
+                PatientName = $"{request.Patient.Name} {request.Patient.Surname}",
+                DoctorName = request.Doctor.FullName,
+                RequestedDateTime = request.RequestedDateTime,
+                Reason = request.Reason,
+                AppointmentDateTime = request.RequestedDateTime  // pre-filled, can be edited
+            };
+
+            return View(model);
+        }
+
+        // ── APPROVE REQUEST (POST) – create Appointment ─────────
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveRequest(ApproveRequestViewModel model)
+        {
+            var request = await _context.AppointmentRequests
+                .Include(r => r.Patient)
+                .Include(r => r.Doctor)
+                .FirstOrDefaultAsync(r => r.RequestId == model.RequestId);
+
+            if (request == null || request.Status != "Pending")
+                return NotFound();
+
+            // Optionally validate new datetime is in the future etc. (skipped for brevity)
+
+            // Create the actual appointment
+            var appointment = new Appointment
+            {
+                PatientId = request.PatientId,
+                DoctorId = request.DoctorId,
+                AppointmentDateTime = model.AppointmentDateTime,
+                Reason = request.Reason,
+                Status = AppointmentStatus.Booked,
+                CreatedByReceptionistId = GetCurrentReceptionistId()  // optional
+            };
+
+            _context.Appointments.Add(appointment);
+
+            // Mark the request as Approved
+            request.Status = "Approved";
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = $"Appointment created for {request.Patient.Name} {request.Patient.Surname} on {model.AppointmentDateTime:g}.";
+            return RedirectToAction("PendingRequests");
+        }
+
+        // ── REJECT REQUEST (optional but useful) ─────────────────
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectRequest(int id)
+        {
+            var request = await _context.AppointmentRequests.FindAsync(id);
+            if (request == null || request.Status != "Pending")
+                return NotFound();
+
+            request.Status = "Rejected";
+            await _context.SaveChangesAsync();
+
+            TempData["Info"] = "Request rejected.";
+            return RedirectToAction("PendingRequests");
+        }
+
+        // Helper to get current receptionist employee ID (if needed)
+        private int? GetCurrentReceptionistId()
+        {
+            var idStr = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (int.TryParse(idStr, out int id)) return id;
+            return null;
+        }
+
+
+
 
         // ── PRIVATE HELPERS ─────────────────────────────────────
         private void PopulateDropdowns(AppointmentViewModel model)

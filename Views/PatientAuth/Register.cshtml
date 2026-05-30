@@ -1,0 +1,144 @@
+﻿@model MedicalPractice.ViewModel.PatientRegisterViewModel
+@{
+    ViewData["Title"] = "Patient Registration";
+    Layout = "_Layout";
+}
+
+<div class="auth-page">
+    <div class="auth-card" style="max-width:550px;">
+        <div class="auth-logo">Medical<span>Practice</span></div>
+        <p class="auth-sub">Create your patient portal account</p>
+
+        <form asp-action="Register" method="post">
+            @Html.AntiForgeryToken()
+
+            <div asp-validation-summary="All" class="mp-alert mp-alert-danger"
+                 style="@(ViewData.ModelState.IsValid ? "display:none" : "")">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                <span asp-validation-summary="All"></span>
+            </div>
+
+            <!-- Name -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Name" class="form-label">First Name</label>
+                    <input asp-for="Name" class="form-control" placeholder="First name" />
+                    <span asp-validation-for="Name" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Surname" class="form-label">Surname</label>
+                    <input asp-for="Surname" class="form-control" placeholder="Surname" />
+                    <span asp-validation-for="Surname" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+            </div>
+
+            <!-- Username -->
+            <div class="mb-3">
+                <label asp-for="Username" class="form-label">Username</label>
+                <input asp-for="Username" class="form-control" placeholder="Choose a username" autocomplete="username" />
+                <span asp-validation-for="Username" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Gender -->
+            <div class="mb-3">
+                <label asp-for="Gender" class="form-label">Gender</label>
+                <select asp-for="Gender" class="form-select">
+                    <option value="">-- Select --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+                <span asp-validation-for="Gender" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Address -->
+            <div class="mb-3">
+                <label asp-for="HomeAddress" class="form-label">Home Address</label>
+                <input asp-for="HomeAddress" class="form-control" placeholder="Street, City, Code" />
+                <span asp-validation-for="HomeAddress" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Email -->
+            <div class="mb-3">
+                <label asp-for="EmailAddress" class="form-label">Email Address</label>
+                <input asp-for="EmailAddress" class="form-control" placeholder="you@example.com" autocomplete="email" />
+                <span asp-validation-for="EmailAddress" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Phone -->
+            <div class="mb-3">
+                <label asp-for="PhoneNumber" class="form-label">Phone Number</label>
+                <input asp-for="PhoneNumber" class="form-control" placeholder="+27 82 123 4567" />
+                <span asp-validation-for="PhoneNumber" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Medical Aid -->
+            <div class="mb-3">
+                <label class="form-label">Medical Aid</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="MedicalAid" value="true" id="maYes" checked />
+                        <label class="form-check-label" for="maYes">Yes</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="MedicalAid" value="false" id="maNo" />
+                        <label class="form-check-label" for="maNo">No</label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3" id="maCompanyGroup">
+                <label asp-for="MedicalAidCompany" class="form-label">Medical Aid Company</label>
+                <select asp-for="MedicalAidCompany" class="form-select">
+                    <option value="">-- Select --</option>
+                    <option value="Discovery">Discovery</option>
+                    <option value="Momentum">Momentum</option>
+                    <option value="Bonitas">Bonitas</option>
+                </select>
+                <span asp-validation-for="MedicalAidCompany" class="text-danger" style="font-size:.8rem;"></span>
+            </div>
+
+            <!-- Password -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label asp-for="Password" class="form-label">Password</label>
+                    <input asp-for="Password" class="form-control" placeholder="Min. 8 characters" autocomplete="new-password" type="password" />
+                    <span asp-validation-for="Password" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="ConfirmPassword" class="form-label">Confirm Password</label>
+                    <input asp-for="ConfirmPassword" class="form-control" placeholder="Re-enter password" autocomplete="new-password" type="password" />
+                    <span asp-validation-for="ConfirmPassword" class="text-danger" style="font-size:.8rem;"></span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-mp-primary w-100" style="padding:.7rem;">
+                <i class="bi bi-person-plus me-2"></i>Register
+            </button>
+        </form>
+
+        <div class="auth-divider"></div>
+        <p class="text-center" style="font-size:.875rem; color:var(--mp-muted);">
+            Already have an account? <a asp-action="Login" style="color:var(--mp-accent); font-weight:600; text-decoration:none;">Sign in</a>
+        </p>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        // Toggle medical aid company dropdown
+        function toggleMA() {
+            const yes = document.getElementById('maYes');
+            const group = document.getElementById('maCompanyGroup');
+            if (yes && group) {
+                group.style.display = yes.checked ? 'block' : 'none';
+            }
+        }
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleMA();
+            document.querySelectorAll('input[name="MedicalAid"]').forEach(radio => {
+                radio.addEventListener('change', toggleMA);
+            });
+        });
+    </script>
+}

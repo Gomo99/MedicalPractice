@@ -17,7 +17,7 @@ namespace MedicalPractice.Models
         public Patient Patient { get; set; }
 
         [Required]
-        public int DoctorId { get; set; }          // EmployeeID of a Doctor
+        public int DoctorId { get; set; }
 
         [ForeignKey("DoctorId")]
         public Employee Doctor { get; set; }
@@ -30,10 +30,13 @@ namespace MedicalPractice.Models
 
         public AppointmentStatus Status { get; set; } = AppointmentStatus.Booked;
 
-        // Optional: track which receptionist created the appointment
         public int? CreatedByReceptionistId { get; set; }
 
         [ForeignKey("CreatedByReceptionistId")]
         public Employee CreatedByReceptionist { get; set; }
+
+        // ── NEW: Reschedule request details ──
+        public DateTime? RescheduleRequestedAt { get; set; }
+        public string? RescheduleRequestReason { get; set; }
     }
 }

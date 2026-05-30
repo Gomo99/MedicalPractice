@@ -1,5 +1,6 @@
 ﻿using MedicalPractice.Data;
 using MedicalPractice.Models;
+using MedicalPractice.Services;
 using MedicalPractice.ViewModel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,20 +12,20 @@ namespace MedicalPractice.Controllers
     public class AssistanceController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notif;
+
         private static readonly string[] MedicalAidCompanies = { "Discovery", "Momentum", "Bonitas" };
 
-        public AssistanceController(ApplicationDbContext context)
+        public AssistanceController(ApplicationDbContext context, INotificationService notif)
         {
             _context = context;
+            _notif = notif;
         }
 
-        // ── DASHBOARD ────────────────────────────────────────────
-        public IActionResult DashBoard()
-        {
-            return View();  // Assistant dashboard with links to manage patients
-        }
+        // ── DASHBOARD ────────────────────────────────────────────────────────
+        public IActionResult DashBoard() => View();
 
-        // ── INDEX – List & Search Patients ─────────────────────
+        // ── INDEX – List & Search Patients ───────────────────────────────────
         public async Task<IActionResult> Index(string? searchString)
         {
             ViewData["CurrentFilter"] = searchString ?? string.Empty;
@@ -42,7 +43,7 @@ namespace MedicalPractice.Controllers
             return View(await patients.AsNoTracking().ToListAsync());
         }
 
-        // ── CREATE (GET) ────────────────────────────────────────
+        // ── CREATE (GET) ──────────────────────────────────────────────────────
         [HttpGet]
         public IActionResult Create()
         {
@@ -50,14 +51,14 @@ namespace MedicalPractice.Controllers
             return View(new PatientViewModel());
         }
 
-        // ── CREATE (POST) ───────────────────────────────────────
+        // ── CREATE (POST) ─────────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(PatientViewModel model)
         {
-            // Ensure medical aid company is selected if MedicalAid is true
             if (model.MedicalAid && string.IsNullOrWhiteSpace(model.MedicalAidCompany))
-                ModelState.AddModelError("MedicalAidCompany", "Please select a medical aid provider.");
+                ModelState.AddModelError("MedicalAidCompany",
+                    "Please select a medical aid provider.");
 
             if (!ModelState.IsValid)
             {
@@ -65,7 +66,6 @@ namespace MedicalPractice.Controllers
                 return View(model);
             }
 
-            // Check unique username
             if (await _context.Patients.AnyAsync(p => p.Username == model.Username))
             {
                 ModelState.AddModelError("Username", "Username already exists.");
@@ -89,16 +89,23 @@ namespace MedicalPractice.Controllers
             _context.Patients.Add(patient);
             await _context.SaveChangesAsync();
 
+            // ── Notify all doctors that a new patient was registered ──────
+            await _notif.CreateForRoleAsync(
+                "Doctor",
+                $"New patient '{patient.Name} {patient.Surname}' was added to the system.",
+                "/Doctors/PatientList",
+                "info",
+                "bi-person-plus-fill");
+
             TempData["Success"] = $"Patient '{patient.Name} {patient.Surname}' added.";
             return RedirectToAction(nameof(Index));
         }
 
-        // ── EDIT (GET) ──────────────────────────────────────────
+        // ── EDIT (GET) ────────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
-
             var patient = await _context.Patients.FindAsync(id);
             if (patient == null) return NotFound();
 
@@ -120,7 +127,7 @@ namespace MedicalPractice.Controllers
             return View(model);
         }
 
-        // ── EDIT (POST) ─────────────────────────────────────────
+        // ── EDIT (POST) ───────────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, PatientViewModel model)
@@ -128,7 +135,8 @@ namespace MedicalPractice.Controllers
             if (id != model.PatientId) return NotFound();
 
             if (model.MedicalAid && string.IsNullOrWhiteSpace(model.MedicalAidCompany))
-                ModelState.AddModelError("MedicalAidCompany", "Please select a medical aid provider.");
+                ModelState.AddModelError("MedicalAidCompany",
+                    "Please select a medical aid provider.");
 
             if (!ModelState.IsValid)
             {
@@ -139,8 +147,8 @@ namespace MedicalPractice.Controllers
             var patient = await _context.Patients.FindAsync(id);
             if (patient == null) return NotFound();
 
-            // Check unique username (exclude current patient)
-            if (await _context.Patients.AnyAsync(p => p.Username == model.Username && p.PatientId != id))
+            if (await _context.Patients.AnyAsync(p =>
+                    p.Username == model.Username && p.PatientId != id))
             {
                 ModelState.AddModelError("Username", "Username already exists.");
                 ViewBag.MedicalAidCompanies = MedicalAidCompanies;
@@ -158,23 +166,30 @@ namespace MedicalPractice.Controllers
             patient.MedicalAidCompany = model.MedicalAid ? model.MedicalAidCompany : null;
 
             await _context.SaveChangesAsync();
+
+            // ── Notify all doctors that a patient record was updated ──────
+            await _notif.CreateForRoleAsync(
+                "Doctor",
+                $"Patient record for '{patient.Name} {patient.Surname}' was updated.",
+                "/Doctors/PatientList",
+                "info",
+                "bi-pencil-square");
+
             TempData["Success"] = $"Patient '{patient.Name} {patient.Surname}' updated.";
             return RedirectToAction(nameof(Index));
         }
 
-        // ── DELETE (GET) – confirmation page ───────────────────
+        // ── DELETE (GET) – confirmation page ──────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
-
             var patient = await _context.Patients.FindAsync(id);
             if (patient == null) return NotFound();
-
             return View(patient);
         }
 
-        // ── DELETE (POST) ───────────────────────────────────────
+        // ── DELETE (POST) ─────────────────────────────────────────────────────
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -182,9 +197,19 @@ namespace MedicalPractice.Controllers
             var patient = await _context.Patients.FindAsync(id);
             if (patient != null)
             {
+                string fullName = $"{patient.Name} {patient.Surname}";
                 _context.Patients.Remove(patient);
                 await _context.SaveChangesAsync();
-                TempData["Success"] = $"Patient '{patient.Name} {patient.Surname}' deleted.";
+
+                // ── Notify all doctors that a patient was removed ─────────
+                await _notif.CreateForRoleAsync(
+                    "Doctor",
+                    $"Patient '{fullName}' has been removed from the system.",
+                    null,
+                    "warning",
+                    "bi-person-dash-fill");
+
+                TempData["Success"] = $"Patient '{fullName}' deleted.";
             }
             return RedirectToAction(nameof(Index));
         }

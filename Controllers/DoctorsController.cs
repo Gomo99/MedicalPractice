@@ -1,5 +1,7 @@
 ﻿using MedicalPractice.Data;
 using MedicalPractice.Models;
+using MedicalPractice.Services;
+using MedicalPractice.Status;
 using MedicalPractice.ViewModel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,19 +14,18 @@ namespace MedicalPractice.Controllers
     public class DoctorsController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notif;
 
-        public DoctorsController(ApplicationDbContext context)
+        public DoctorsController(ApplicationDbContext context, INotificationService notif)
         {
             _context = context;
+            _notif = notif;
         }
 
-        // ── DASHBOARD ────────────────────────────────────────────
-        public IActionResult DashBoard()
-        {
-            return View();
-        }
+        // ── DASHBOARD ────────────────────────────────────────────────────────
+        public IActionResult DashBoard() => View();
 
-        // ── PATIENT LIST (with search) ──────────────────────────
+        // ── PATIENT LIST (with search) ────────────────────────────────────────
         public async Task<IActionResult> PatientList(string? searchString)
         {
             ViewData["CurrentFilter"] = searchString ?? string.Empty;
@@ -33,7 +34,6 @@ namespace MedicalPractice.Controllers
 
             if (!string.IsNullOrWhiteSpace(searchString))
             {
-                // Search by patient number (PatientId), name, surname, or username
                 patients = patients.Where(p =>
                     p.PatientId.ToString().Contains(searchString) ||
                     p.Name.Contains(searchString) ||
@@ -44,7 +44,7 @@ namespace MedicalPractice.Controllers
             return View(await patients.AsNoTracking().OrderBy(p => p.Surname).ToListAsync());
         }
 
-        // ── PATIENT HISTORY (all visits for a patient) ──────────
+        // ── PATIENT HISTORY (all visits for a patient) ────────────────────────
         public async Task<IActionResult> PatientHistory(int? id)
         {
             if (id == null) return NotFound();
@@ -58,11 +58,11 @@ namespace MedicalPractice.Controllers
                 .OrderByDescending(v => v.VisitDateTime)
                 .ToListAsync();
 
-            ViewBag.Patient = patient;    // to show patient name in the view header
+            ViewBag.Patient = patient;
             return View(visits);
         }
 
-        // ── ADD VISIT (GET) ─────────────────────────────────────
+        // ── ADD VISIT (GET) ───────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> AddVisit(int? patientId)
         {
@@ -73,28 +73,25 @@ namespace MedicalPractice.Controllers
 
             ViewBag.PatientName = $"{patient.Name} {patient.Surname}";
 
-            var model = new VisitViewModel
+            return View(new VisitViewModel
             {
                 PatientId = patientId.Value,
                 VisitDateTime = DateTime.Now
-            };
-            return View(model);
+            });
         }
 
-        // ── ADD VISIT (POST) ────────────────────────────────────
+        // ── ADD VISIT (POST) ──────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddVisit(VisitViewModel model)
         {
             if (!ModelState.IsValid)
             {
-                // Retain patient name in case of error
-                var patient = await _context.Patients.FindAsync(model.PatientId);
-                ViewBag.PatientName = patient != null ? $"{patient.Name} {patient.Surname}" : "Unknown";
+                var p = await _context.Patients.FindAsync(model.PatientId);
+                ViewBag.PatientName = p != null ? $"{p.Name} {p.Surname}" : "Unknown";
                 return View(model);
             }
 
-            // Get current doctor ID from claims
             var doctorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(doctorIdStr, out int doctorId))
                 return RedirectToAction("Login", "Account");
@@ -108,14 +105,28 @@ namespace MedicalPractice.Controllers
                 Treatment = model.Treatment
             };
 
+
             _context.Visits.Add(visit);
             await _context.SaveChangesAsync();
+
+            // ── Notify the doctor (self-confirmation) ─────────────────────
+            var patient = await _context.Patients.FindAsync(model.PatientId);
+            string patientName = patient != null
+                ? $"{patient.Name} {patient.Surname}" : "patient";
+
+            await _notif.CreateAsync(
+     doctorId,
+     $"Visit for '{patientName}' recorded.",
+     NotificationCategory.Appointment,   // specify category
+     $"/Doctors/PatientHistory/{model.PatientId}",
+     "success",
+     "bi-clipboard2-pulse-fill");
 
             TempData["Success"] = "Visit recorded.";
             return RedirectToAction("PatientHistory", new { id = model.PatientId });
         }
 
-        // ── EDIT VISIT (GET) ────────────────────────────────────
+        // ── EDIT VISIT (GET) ──────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> EditVisit(int? id)
         {
@@ -126,7 +137,6 @@ namespace MedicalPractice.Controllers
                 .FirstOrDefaultAsync(v => v.VisitId == id);
             if (visit == null) return NotFound();
 
-            // Optional: ensure the logged-in doctor is the one who created the visit
             var doctorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(doctorIdStr, out int doctorId) || visit.DoctorId != doctorId)
                 return Forbid();
@@ -144,7 +154,7 @@ namespace MedicalPractice.Controllers
             return View(model);
         }
 
-        // ── EDIT VISIT (POST) ───────────────────────────────────
+        // ── EDIT VISIT (POST) ─────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditVisit(int id, VisitViewModel model)
@@ -154,14 +164,14 @@ namespace MedicalPractice.Controllers
             if (!ModelState.IsValid)
             {
                 var tempPatient = await _context.Patients.FindAsync(model.PatientId);
-                ViewBag.PatientName = tempPatient != null ? $"{tempPatient.Name} {tempPatient.Surname}" : "Unknown";
+                ViewBag.PatientName = tempPatient != null
+                    ? $"{tempPatient.Name} {tempPatient.Surname}" : "Unknown";
                 return View(model);
             }
 
             var visit = await _context.Visits.FindAsync(id);
             if (visit == null) return NotFound();
 
-            // Again, verify ownership
             var doctorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(doctorIdStr, out int doctorId) || visit.DoctorId != doctorId)
                 return Forbid();
@@ -171,8 +181,46 @@ namespace MedicalPractice.Controllers
             visit.Treatment = model.Treatment;
             await _context.SaveChangesAsync();
 
+            // ── Notify the doctor (self-confirmation of update) ───────────
+            var patient = await _context.Patients.FindAsync(model.PatientId);
+            string patientName = patient != null
+                ? $"{patient.Name} {patient.Surname}" : "patient";
+
+            await _notif.CreateAsync(
+                doctorId,
+                $"Visit for '{patientName}' on {model.VisitDateTime:dd MMM yyyy} was updated.",
+                $"/Doctors/PatientHistory/{model.PatientId}",
+                "info",
+                "bi-clipboard2-check-fill");
+
             TempData["Success"] = "Visit updated.";
             return RedirectToAction("PatientHistory", new { id = model.PatientId });
+        }
+
+
+
+        [HttpGet]
+        public async Task<IActionResult> MyAppointments(DateTime? date)
+        {
+            // Get the logged‑in doctor’s EmployeeID from the claim
+            var doctorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(doctorIdStr, out int doctorId))
+                return RedirectToAction("Login", "Account");
+
+            // Use today if no date is provided
+            DateTime selectedDate = date?.Date ?? DateTime.Today;
+
+            var appointments = await _context.Appointments
+                .Where(a => a.DoctorId == doctorId
+                         && a.AppointmentDateTime.Date == selectedDate
+                         && a.Status != AppointmentStatus.Cancelled)   // optionally hide cancelled
+                .Include(a => a.Patient)
+                .OrderBy(a => a.AppointmentDateTime)
+                .AsNoTracking()
+                .ToListAsync();
+
+            ViewBag.SelectedDate = selectedDate;
+            return View(appointments);
         }
     }
 }

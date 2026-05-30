@@ -14,14 +14,18 @@ namespace MedicalPractice.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _email;
+        private readonly INotificationService _notif;
 
-        public AdminController(ApplicationDbContext context, IEmailService email)
+        public AdminController(ApplicationDbContext context,
+                               IEmailService email,
+                               INotificationService notif)
         {
             _context = context;
             _email = email;
+            _notif = notif;
         }
 
-        // ── DASHBOARD – List all employees ─────────────────────
+        // ── DASHBOARD – List all employees ─────────────────────────────────
         public async Task<IActionResult> DashBoard()
         {
             var employees = await _context.Employees
@@ -31,10 +35,10 @@ namespace MedicalPractice.Controllers
             return View(employees);
         }
 
-        // (Optional) Keep Index if you want both routes
-        public async Task<IActionResult> Index() => await Task.FromResult(RedirectToAction(nameof(DashBoard)));
+        public async Task<IActionResult> Index()
+            => await Task.FromResult(RedirectToAction(nameof(DashBoard)));
 
-        // ── CREATE (GET) ──────────────────────────────────────
+        // ── CREATE (GET) ────────────────────────────────────────────────────
         [HttpGet]
         public IActionResult Create()
         {
@@ -45,29 +49,25 @@ namespace MedicalPractice.Controllers
             return View(new CreateEmployeeViewModel());
         }
 
-        // ── CREATE (POST) ─────────────────────────────────────
+        // ── CREATE (POST) ───────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(CreateEmployeeViewModel model)
         {
             if (!ModelState.IsValid)
             {
-                ViewBag.Roles = Enum.GetValues(typeof(UserRole))
-                    .Cast<UserRole>()
-                    .Where(r => r != UserRole.Admin)
-                    .ToList();
+                ViewBag.Roles = RolesExceptAdmin();
                 return View(model);
             }
 
             bool userExists = await _context.Employees.AnyAsync(
                 e => e.UserName == model.UserName || e.Email == model.Email);
+
             if (userExists)
             {
-                ModelState.AddModelError(string.Empty, "A user with this username or email already exists.");
-                ViewBag.Roles = Enum.GetValues(typeof(UserRole))
-                    .Cast<UserRole>()
-                    .Where(r => r != UserRole.Admin)
-                    .ToList();
+                ModelState.AddModelError(string.Empty,
+                    "A user with this username or email already exists.");
+                ViewBag.Roles = RolesExceptAdmin();
                 return View(model);
             }
 
@@ -86,22 +86,32 @@ namespace MedicalPractice.Controllers
             _context.Employees.Add(employee);
             await _context.SaveChangesAsync();
 
+            // ── Email the new employee their credentials ──────────────────
             string subject = "Your Medical Practice Account";
             string body = $@"
                 <p>Hello {employee.FullName},</p>
                 <p>Your account has been created. Use the following credentials to log in:</p>
                 <p><strong>Username:</strong> {employee.UserName}<br/>
-                <strong>Password:</strong> {generatedPassword}</p>
+                   <strong>Password:</strong> {generatedPassword}</p>
                 <p>Please change your password after logging in.</p>
                 <p>Regards,<br/>Medical Practice</p>";
 
             await _email.SendAsync(employee.Email, subject, body);
 
-            TempData["Success"] = $"Account '{employee.UserName}' created. Password sent to {employee.Email}.";
+            // ── Notify all admins that a new account was created ──────────
+            await _notif.CreateForRoleAsync(
+                "Admin",
+                $"New {employee.Role} account '{employee.UserName}' ({employee.FullName}) was created.",
+                "/Admin/DashBoard",
+                "success",
+                "bi-person-check-fill");
+
+            TempData["Success"] =
+                $"Account '{employee.UserName}' created. Password sent to {employee.Email}.";
             return RedirectToAction(nameof(DashBoard));
         }
 
-        // ── EDIT (GET) ────────────────────────────────────────
+        // ── EDIT (GET) ──────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -117,13 +127,11 @@ namespace MedicalPractice.Controllers
                 FullName = employee.FullName,
                 Role = employee.Role
             };
-            ViewBag.Roles = Enum.GetValues(typeof(UserRole))
-                .Cast<UserRole>()
-                .ToList();
+            ViewBag.Roles = AllRoles();
             return View(model);
         }
 
-        // ── EDIT (POST) ───────────────────────────────────────
+        // ── EDIT (POST) ─────────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, EditEmployeeViewModel model)
@@ -132,9 +140,7 @@ namespace MedicalPractice.Controllers
 
             if (!ModelState.IsValid)
             {
-                ViewBag.Roles = Enum.GetValues(typeof(UserRole))
-                    .Cast<UserRole>()
-                    .ToList();
+                ViewBag.Roles = AllRoles();
                 return View(model);
             }
 
@@ -144,12 +150,12 @@ namespace MedicalPractice.Controllers
             bool duplicate = await _context.Employees.AnyAsync(e =>
                 e.EmployeeID != id &&
                 (e.UserName == model.UserName || e.Email == model.Email));
+
             if (duplicate)
             {
-                ModelState.AddModelError(string.Empty, "Another user already has this username or email.");
-                ViewBag.Roles = Enum.GetValues(typeof(UserRole))
-                    .Cast<UserRole>()
-                    .ToList();
+                ModelState.AddModelError(string.Empty,
+                    "Another user already has this username or email.");
+                ViewBag.Roles = AllRoles();
                 return View(model);
             }
 
@@ -159,11 +165,19 @@ namespace MedicalPractice.Controllers
             employee.Role = model.Role;
             await _context.SaveChangesAsync();
 
+            // ── Notify all admins about the edit ──────────────────────────
+            await _notif.CreateForRoleAsync(
+                "Admin",
+                $"Account '{employee.UserName}' was updated by an admin.",
+                "/Admin/DashBoard",
+                "info",
+                "bi-pencil-square");
+
             TempData["Success"] = $"Account '{employee.UserName}' updated.";
             return RedirectToAction(nameof(DashBoard));
         }
 
-        // ── TOGGLE STATUS ─────────────────────────────────────
+        // ── TOGGLE STATUS ────────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleStatus(int id)
@@ -174,22 +188,54 @@ namespace MedicalPractice.Controllers
             employee.IsActive = employee.IsActive == AccountStatus.Active
                 ? AccountStatus.Inactive
                 : AccountStatus.Active;
+
             await _context.SaveChangesAsync();
 
-            string status = employee.IsActive == AccountStatus.Active ? "activated" : "deactivated";
-            TempData["Success"] = $"Account '{employee.UserName}' {status}.";
+            string statusLabel = employee.IsActive == AccountStatus.Active
+                ? "activated" : "deactivated";
+
+            // ── Notify all admins about the status change ─────────────────
+            string notifType = employee.IsActive == AccountStatus.Active
+                ? "success" : "warning";
+            string notifIcon = employee.IsActive == AccountStatus.Active
+                ? "bi-person-check-fill" : "bi-person-dash-fill";
+
+            await _notif.CreateForRoleAsync(
+                "Admin",
+                $"Account '{employee.UserName}' was {statusLabel}.",
+                "/Admin/DashBoard",
+                notifType,
+                notifIcon);
+
+            // ── Notify the affected employee themselves ────────────────────
+            await _notif.CreateAsync(
+                employee.EmployeeID,
+                $"Your account has been {statusLabel} by an administrator.",
+                null,
+                notifType,
+                notifIcon);
+
+            TempData["Success"] = $"Account '{employee.UserName}' {statusLabel}.";
             return RedirectToAction(nameof(DashBoard));
         }
 
-        // ── PRIVATE HELPERS ──────────────────────────────────
+        // ── PRIVATE HELPERS ──────────────────────────────────────────────────
+        private static List<UserRole> RolesExceptAdmin()
+            => Enum.GetValues(typeof(UserRole))
+                   .Cast<UserRole>()
+                   .Where(r => r != UserRole.Admin)
+                   .ToList();
+
+        private static List<UserRole> AllRoles()
+            => Enum.GetValues(typeof(UserRole)).Cast<UserRole>().ToList();
+
         private static string GenerateRandomPassword(int length = 12)
         {
-            const string validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%&*";
-            var random = new Random();
-            char[] chars = new char[length];
-            for (int i = 0; i < length; i++)
-                chars[i] = validChars[random.Next(validChars.Length)];
-            return new string(chars);
+            const string chars =
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%&*";
+            var rng = new Random();
+            return new string(Enumerable.Range(0, length)
+                .Select(_ => chars[rng.Next(chars.Length)]).ToArray());
         }
     }
 }

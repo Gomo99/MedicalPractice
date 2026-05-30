@@ -7,10 +7,19 @@
     <div style="text-align:center; color:#fff; max-width:520px; padding:2rem;">
         <div style="font-family:'DM Serif Display',serif; font-size:2.5rem; margin-bottom:1rem;">MedicalPractice</div>
         <p style="font-size:1.1rem; opacity:.85; margin-bottom:2rem;">Digitalizing patient visits for modern medical practices.</p>
+
         <a asp-controller="Account" asp-action="Login"
            style="background:#fff; color:var(--mp-primary); border-radius:10px; padding:.75rem 2.5rem;
                   font-weight:700; text-decoration:none; font-size:1rem; display:inline-block;">
-            Sign In
+            Staff Sign In
         </a>
+
+        <div style="margin-top:1.5rem;">
+            <a asp-controller="PatientAuth" asp-action="Login"
+               style="background:transparent; color:#fff; border:2px solid rgba(255,255,255,.4); border-radius:10px;
+                      padding:.65rem 2.2rem; font-weight:600; text-decoration:none; font-size:1rem; display:inline-block;">
+                Patient Portal
+            </a>
+        </div>
     </div>
 </div>
