@@ -14,6 +14,8 @@ namespace MedicalPractice.Data
         public DbSet<Patient> Patients { get; set; }
         public DbSet<Visit> Visits { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
+        public DbSet<AppointmentRequest> AppointmentRequests { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

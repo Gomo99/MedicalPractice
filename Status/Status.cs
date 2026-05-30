@@ -20,8 +20,31 @@
     {
         Booked,
         Arrived,
+        InProgress,
         Completed,
-        Cancelled
+        Cancelled,
+        RescheduleRequested     // NEW
+    }
+
+
+    public enum NotificationCategory
+    {
+        General,       // default, fallback
+        Appointment,
+        Prescription,
+        Billing,
+        Patient,
+        System,
+        Emergency
+    }
+
+
+    public enum NotificationPriority
+    {
+        Low,
+        Normal,
+        High,
+        Critical
     }
 
 }

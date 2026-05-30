@@ -1,4 +1,5 @@
 ﻿using MedicalPractice.Data;
+using MedicalPractice.Hubs;
 using MedicalPractice.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddSignalR();
 // ── Authentication ───────────────────────────────────────────────────────────
 // KEY FIX: SlidingExpiration is true, but the cookie MUST also be persistent
 // (IsPersistent = true in SignInAsync) otherwise it is treated as a session cookie
@@ -55,6 +57,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
+app.MapHub<NotificationHub>("/notificationhub");
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
