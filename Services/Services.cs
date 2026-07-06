@@ -2,9 +2,81 @@
 using MedicalPractice.Models;
 using MedicalPractice.Status;
 using Microsoft.EntityFrameworkCore;
+using OtpNet;
+using QRCoder;
+using System.Net;
+using System.Net.Mail;
+using System.Text.Json;
 
 namespace MedicalPractice.Services
 {
+    public class EmailService : IEmailService
+    {
+        private readonly IConfiguration _config;
+
+        public EmailService(IConfiguration config)
+        {
+            _config = config;
+        }
+
+        public async Task SendAsync(string toEmail, string subject, string htmlBody)
+        {
+            try
+            {
+                // ── READ CONFIG (matching your JSON) ───────────────
+                var smtp = _config["Email:Host"];
+                var portStr = _config["Email:Port"];
+                var user = _config["Email:Username"];
+                var pass = _config["Email:Password"];
+                var from = _config["Email:SenderEmail"];
+
+                // ── VALIDATION (prevents crashes) ──────────────────
+                if (string.IsNullOrEmpty(smtp))
+                    throw new Exception("Email Host is not configured.");
+
+                if (string.IsNullOrEmpty(portStr) || !int.TryParse(portStr, out int port))
+                    throw new Exception("Email Port is not configured correctly.");
+
+                if (string.IsNullOrEmpty(user))
+                    throw new Exception("Email Username is missing.");
+
+                if (string.IsNullOrEmpty(pass))
+                    throw new Exception("Email Password is missing.");
+
+                if (string.IsNullOrEmpty(from))
+                    throw new Exception("Email Sender address is missing.");
+
+                // ── SMTP CLIENT ───────────────────────────────────
+                using var client = new SmtpClient(smtp, port)
+                {
+                    Credentials = new NetworkCredential(user, pass),
+                    EnableSsl = true
+                };
+
+                // ── EMAIL MESSAGE ─────────────────────────────────
+                var message = new MailMessage(from, toEmail, subject, htmlBody)
+                {
+                    IsBodyHtml = true
+                };
+
+                // ── SEND EMAIL ────────────────────────────────────
+                await client.SendMailAsync(message);
+            }
+            catch (Exception ex)
+            {
+                // Log error (VERY IMPORTANT for debugging)
+                Console.WriteLine("EMAIL ERROR: " + ex.Message);
+
+                // Re-throw so you see it in UI during development
+                throw;
+            }
+        }
+    }
+
+
+
+
+
     public class NotificationService : INotificationService
     {
         private readonly ApplicationDbContext _context;
@@ -155,6 +227,92 @@ namespace MedicalPractice.Services
             if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
             if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
             return utc.ToLocalTime().ToString("MMM d");
+        }
+    }
+
+
+
+
+
+
+    public class TwoFactorService : ITwoFactorService
+    {
+        public string GenerateSecretKey()
+        {
+            var key = KeyGeneration.GenerateRandomKey(20);
+            return Base32Encoding.ToString(key);
+        }
+
+        public string GetQrCodeUri(string secretKey, string email, string issuer)
+        {
+            // otpauth://totp/{issuer}:{email}?secret={key}&issuer={issuer}
+            var encodedIssuer = Uri.EscapeDataString(issuer);
+            var encodedEmail = Uri.EscapeDataString(email);
+            return $"otpauth://totp/{encodedIssuer}:{encodedEmail}" +
+                   $"?secret={secretKey}&issuer={encodedIssuer}&digits=6&period=30";
+        }
+
+        public byte[] GenerateQrCodePng(string uri)
+        {
+            using var qrGenerator = new QRCodeGenerator();
+            using var qrCodeData = qrGenerator.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+            using var qrCode = new PngByteQRCode(qrCodeData);
+            return qrCode.GetGraphic(6);
+        }
+
+        public bool VerifyCode(string secretKey, string code)
+        {
+            try
+            {
+                var keyBytes = Base32Encoding.ToBytes(secretKey);
+                var totp = new Totp(keyBytes);
+
+                // Allow 1 step of clock drift in each direction
+                return totp.VerifyTotp(
+                    code.Trim(),
+                    out _,
+                    new VerificationWindow(previous: 1, future: 1));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public List<string> GenerateRecoveryCodes()
+        {
+            var rng = new Random();
+            var codes = new List<string>();
+
+            for (int i = 0; i < 8; i++)
+            {
+                // Format: XXXX-XXXX  (8 hex chars)
+                var part1 = rng.Next(0x1000, 0xFFFF).ToString("X4");
+                var part2 = rng.Next(0x1000, 0xFFFF).ToString("X4");
+                codes.Add($"{part1}-{part2}");
+            }
+
+            return codes;
+        }
+
+        public bool VerifyRecoveryCode(string storedJson, string inputCode,
+                                        out string updatedJson)
+        {
+            updatedJson = storedJson;
+
+            var codes = JsonSerializer.Deserialize<List<string>>(storedJson)
+                        ?? new List<string>();
+
+            // Recovery codes are stored as BCrypt hashes
+            var matched = codes.FirstOrDefault(c =>
+                BCrypt.Net.BCrypt.Verify(inputCode.Trim().ToUpper(), c));
+
+            if (matched == null) return false;
+
+            // Remove the used code (one-time use)
+            codes.Remove(matched);
+            updatedJson = JsonSerializer.Serialize(codes);
+            return true;
         }
     }
 }

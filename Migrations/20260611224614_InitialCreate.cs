@@ -55,11 +55,79 @@ namespace MedicalPractice.Migrations
                     EmailAddress = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     MedicalAid = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
-                    MedicalAidCompany = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    MedicalAidCompany = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsActive = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
+                    MustChangePassword = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
+                    ResetPin = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ResetPinExpiration = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    FailedLoginAttempts = table.Column<int>(type: "int", nullable: false),
+                    LockoutEnd = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsTwoFactorEnabled = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
+                    TwoFactorSecretKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TwoFactorRecoveryCodes = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Patients", x => x.PatientId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Notifications",
+                columns: table => new
+                {
+                    NotificationId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Link = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Icon = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsRead = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Category = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Priority = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Notifications", x => x.NotificationId);
+                    table.ForeignKey(
+                        name: "FK_Notifications_Employees_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employees",
+                        principalColumn: "EmployeeID",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AppointmentRequests",
+                columns: table => new
+                {
+                    RequestId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PatientId = table.Column<int>(type: "int", nullable: false),
+                    DoctorId = table.Column<int>(type: "int", nullable: false),
+                    RequestedDateTime = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    RequestedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AppointmentRequests", x => x.RequestId);
+                    table.ForeignKey(
+                        name: "FK_AppointmentRequests_Employees_DoctorId",
+                        column: x => x.DoctorId,
+                        principalTable: "Employees",
+                        principalColumn: "EmployeeID",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AppointmentRequests_Patients_PatientId",
+                        column: x => x.PatientId,
+                        principalTable: "Patients",
+                        principalColumn: "PatientId",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -73,7 +141,9 @@ namespace MedicalPractice.Migrations
                     AppointmentDateTime = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Reason = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Status = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    CreatedByReceptionistId = table.Column<int>(type: "int", nullable: true)
+                    CreatedByReceptionistId = table.Column<int>(type: "int", nullable: true),
+                    RescheduleRequestedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RescheduleRequestReason = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -138,6 +208,16 @@ namespace MedicalPractice.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AppointmentRequests_DoctorId",
+                table: "AppointmentRequests",
+                column: "DoctorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AppointmentRequests_PatientId",
+                table: "AppointmentRequests",
+                column: "PatientId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Appointments_CreatedByReceptionistId",
                 table: "Appointments",
                 column: "CreatedByReceptionistId");
@@ -151,6 +231,11 @@ namespace MedicalPractice.Migrations
                 name: "IX_Appointments_PatientId",
                 table: "Appointments",
                 column: "PatientId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_EmployeeId",
+                table: "Notifications",
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Visits_DoctorId",
@@ -167,7 +252,13 @@ namespace MedicalPractice.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "AppointmentRequests");
+
+            migrationBuilder.DropTable(
                 name: "Appointments");
+
+            migrationBuilder.DropTable(
+                name: "Notifications");
 
             migrationBuilder.DropTable(
                 name: "Visits");

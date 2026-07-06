@@ -2,6 +2,12 @@
 
 namespace MedicalPractice.Services
 {
+    public interface IEmailService
+    {
+        Task SendAsync(string toEmail, string subject, string htmlBody);
+    }
+
+
     public interface INotificationService
     {
         // ── Original methods (unchanged) ───────────────────────────
@@ -25,5 +31,16 @@ namespace MedicalPractice.Services
         Task<List<NotificationDto>> GetRecentAsync(int employeeId, int count = 15);
         Task MarkAsReadAsync(int notificationId, int employeeId);
         Task MarkAllAsReadAsync(int employeeId);
+    }
+
+
+    public interface ITwoFactorService
+    {
+        string GenerateSecretKey();
+        string GetQrCodeUri(string secretKey, string email, string issuer);
+        byte[] GenerateQrCodePng(string uri);
+        bool VerifyCode(string secretKey, string code);
+        List<string> GenerateRecoveryCodes();
+        bool VerifyRecoveryCode(string storedJson, string inputCode, out string updatedJson);
     }
 }
