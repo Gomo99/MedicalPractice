@@ -18,7 +18,10 @@ namespace MedicalPractice.Controllers
                     return RedirectToAction("DashBoard", "Assistance");
                 else if (User.IsInRole("Receptionist"))
                     return RedirectToAction("DashBoard", "Receptionist");
+<<<<<<< HEAD
 
+=======
+>>>>>>> 1be8920d85f2525285b3857d91b8d60e48c4ea49
             }
             return View();
         }
